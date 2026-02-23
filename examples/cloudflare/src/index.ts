@@ -1,15 +1,19 @@
 import { getSandbox, type Sandbox } from "@cloudflare/sandbox";
+import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { runPromptTest, type PromptTestRequest } from "./prompt-test";
 
 export { Sandbox } from "@cloudflare/sandbox";
 
-type Env = {
-  Bindings: {
-    Sandbox: DurableObjectNamespace<Sandbox>;
-    ASSETS: Fetcher;
-    ANTHROPIC_API_KEY?: string;
-    OPENAI_API_KEY?: string;
-  };
+type Bindings = {
+  Sandbox: DurableObjectNamespace<Sandbox>;
+  ASSETS: Fetcher;
+  ANTHROPIC_API_KEY?: string;
+  OPENAI_API_KEY?: string;
+  CODEX_API_KEY?: string;
 };
+
+type AppEnv = { Bindings: Bindings };
 
 const PORT = 8000;
 
@@ -23,54 +27,60 @@ async function isServerRunning(sandbox: Sandbox): Promise<boolean> {
   }
 }
 
-/** Ensure sandbox-agent is running in the container */
-async function ensureRunning(sandbox: Sandbox, env: Env["Bindings"]): Promise<void> {
-  if (await isServerRunning(sandbox)) return;
-
-  // Set environment variables for agents
+async function getReadySandbox(name: string, env: Bindings): Promise<Sandbox> {
+  const sandbox = getSandbox(env.Sandbox, name);
   const envVars: Record<string, string> = {};
   if (env.ANTHROPIC_API_KEY) envVars.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
   if (env.OPENAI_API_KEY) envVars.OPENAI_API_KEY = env.OPENAI_API_KEY;
+  if (env.CODEX_API_KEY) envVars.CODEX_API_KEY = env.CODEX_API_KEY;
+  if (!envVars.CODEX_API_KEY && envVars.OPENAI_API_KEY) envVars.CODEX_API_KEY = envVars.OPENAI_API_KEY;
   await sandbox.setEnvVars(envVars);
 
-  // Start sandbox-agent server as background process
-  await sandbox.startProcess(`sandbox-agent server --no-token --host 0.0.0.0 --port ${PORT}`);
+  if (!(await isServerRunning(sandbox))) {
+    await sandbox.startProcess(`sandbox-agent server --no-token --host 0.0.0.0 --port ${PORT}`);
 
-  // Poll health endpoint until server is ready (max ~6 seconds)
-  for (let i = 0; i < 30; i++) {
-    if (await isServerRunning(sandbox)) return;
-    await new Promise((r) => setTimeout(r, 200));
+    for (let i = 0; i < 30; i++) {
+      if (await isServerRunning(sandbox)) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
   }
+  return sandbox;
 }
 
-export default {
-  async fetch(request: Request, env: Env["Bindings"]): Promise<Response> {
-    const url = new URL(request.url);
+async function proxyToSandbox(sandbox: Sandbox, request: Request, path: string): Promise<Response> {
+  const query = new URL(request.url).search;
+  return sandbox.containerFetch(new Request(`http://localhost${path}${query}`, request), PORT);
+}
 
-    // Proxy requests to sandbox-agent: /sandbox/:name/v1/...
-    const match = url.pathname.match(/^\/sandbox\/([^/]+)(\/.*)?$/);
-    if (match) {
-      if (!env.ANTHROPIC_API_KEY && !env.OPENAI_API_KEY) {
-        return Response.json(
-          { error: "ANTHROPIC_API_KEY or OPENAI_API_KEY must be set" },
-          { status: 500 }
-        );
-      }
+const app = new Hono<AppEnv>();
 
-      const name = match[1];
-      const path = match[2] || "/";
-      const sandbox = getSandbox(env.Sandbox, name);
+app.onError((error) => {
+  return new Response(String(error), { status: 500 });
+});
 
-      await ensureRunning(sandbox, env);
+app.post("/sandbox/:name/prompt", async (c) => {
+  if (!(c.req.header("content-type") ?? "").includes("application/json")) {
+    throw new HTTPException(400, { message: "Content-Type must be application/json" });
+  }
 
-      // Proxy request to container
-      return sandbox.containerFetch(
-        new Request(`http://localhost${path}${url.search}`, request),
-        PORT
-      );
-    }
+  let payload: PromptTestRequest;
+  try {
+    payload = await c.req.json<PromptTestRequest>();
+  } catch {
+    throw new HTTPException(400, { message: "Invalid JSON body" });
+  }
 
-    // Serve frontend assets
-    return env.ASSETS.fetch(request);
-  },
-} satisfies ExportedHandler<Env["Bindings"]>;
+  const sandbox = await getReadySandbox(c.req.param("name"), c.env);
+  return c.json(await runPromptTest(sandbox, payload, PORT));
+});
+
+app.all("/sandbox/:name/proxy/*", async (c) => {
+  const sandbox = await getReadySandbox(c.req.param("name"), c.env);
+  const wildcard = c.req.param("*");
+  const path = wildcard ? `/${wildcard}` : "/";
+  return proxyToSandbox(sandbox, c.req.raw, path);
+});
+
+app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
+
+export default app;

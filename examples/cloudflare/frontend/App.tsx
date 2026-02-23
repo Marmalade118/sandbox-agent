@@ -25,7 +25,7 @@ export function App() {
 
     try {
       // Connect via proxy endpoint (need full URL for SDK)
-      const baseUrl = `${window.location.origin}/sandbox/${encodeURIComponent(sandboxName)}`;
+      const baseUrl = `${window.location.origin}/sandbox/${encodeURIComponent(sandboxName)}/proxy`;
       log(`Connecting to sandbox: ${sandboxName}`);
 
       const client = await SandboxAgent.connect({ baseUrl });

@@ -36,6 +36,16 @@ Test the endpoint:
 curl http://localhost:8787
 ```
 
+Test prompt routing through the SDK with a custom sandbox fetch handler:
+
+```bash
+curl -X POST "http://localhost:8787/sandbox/demo/prompt" \
+  -H "Content-Type: application/json" \
+  -d '{"agent":"codex","prompt":"Reply with one short sentence."}'
+```
+
+The response includes `events`, an array of all recorded session events for that prompt.
+
 ## Deploy
 
 ```bash

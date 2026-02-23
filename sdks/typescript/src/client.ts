@@ -48,22 +48,36 @@ import {
 
 const API_PREFIX = "/v1";
 const FS_PATH = `${API_PREFIX}/fs`;
+const DEFAULT_BASE_URL = "http://sandbox-agent";
 
 const DEFAULT_REPLAY_MAX_EVENTS = 50;
 const DEFAULT_REPLAY_MAX_CHARS = 12_000;
 const EVENT_INDEX_SCAN_EVENTS_LIMIT = 500;
 
-export interface SandboxAgentConnectOptions {
-  baseUrl: string;
+interface SandboxAgentConnectCommonOptions {
+  headers?: HeadersInit;
+  persist?: SessionPersistDriver;
+  replayMaxEvents?: number;
+  replayMaxChars?: number;
   token?: string;
+}
+
+export type SandboxAgentConnectOptions =
+  | (SandboxAgentConnectCommonOptions & {
+      baseUrl: string;
+      fetch?: typeof fetch;
+    })
+  | (SandboxAgentConnectCommonOptions & {
+      fetch: typeof fetch;
+      baseUrl?: string;
+    });
+
+export interface SandboxAgentStartOptions {
   fetch?: typeof fetch;
   headers?: HeadersInit;
   persist?: SessionPersistDriver;
   replayMaxEvents?: number;
   replayMaxChars?: number;
-}
-
-export interface SandboxAgentStartOptions extends Omit<SandboxAgentConnectOptions, "baseUrl" | "token"> {
   spawn?: SandboxAgentSpawnOptions | boolean;
 }
 
@@ -443,18 +457,22 @@ export class SandboxAgent {
   private readonly seedSessionEventIndexBySession = new Map<string, Promise<void>>();
 
   constructor(options: SandboxAgentConnectOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/$/, "");
+    const baseUrl = options.baseUrl?.trim();
+    if (!baseUrl && !options.fetch) {
+      throw new Error("baseUrl is required unless fetch is provided.");
+    }
+    this.baseUrl = (baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
     this.token = options.token;
-    this.fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
+    const resolvedFetch = options.fetch ?? globalThis.fetch?.bind(globalThis);
+    if (!resolvedFetch) {
+      throw new Error("Fetch API is not available; provide a fetch implementation.");
+    }
+    this.fetcher = resolvedFetch;
     this.defaultHeaders = options.headers;
     this.persist = options.persist ?? new InMemorySessionPersistDriver();
 
     this.replayMaxEvents = normalizePositiveInt(options.replayMaxEvents, DEFAULT_REPLAY_MAX_EVENTS);
     this.replayMaxChars = normalizePositiveInt(options.replayMaxChars, DEFAULT_REPLAY_MAX_CHARS);
-
-    if (!this.fetcher) {
-      throw new Error("Fetch API is not available; provide a fetch implementation.");
-    }
   }
 
   static async connect(options: SandboxAgentConnectOptions): Promise<SandboxAgent> {
@@ -468,7 +486,8 @@ export class SandboxAgent {
     }
 
     const { spawnSandboxAgent } = await import("./spawn.js");
-    const handle = await spawnSandboxAgent(spawnOptions, options.fetch ?? globalThis.fetch);
+    const resolvedFetch = options.fetch ?? globalThis.fetch?.bind(globalThis);
+    const handle = await spawnSandboxAgent(spawnOptions, resolvedFetch);
 
     const client = new SandboxAgent({
       baseUrl: handle.baseUrl,

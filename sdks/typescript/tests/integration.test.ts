@@ -137,6 +137,45 @@ describe("Integration: TypeScript SDK flat session API", () => {
     await sdk.dispose();
   });
 
+  it("uses custom fetch for both HTTP helpers and ACP session traffic", async () => {
+    const defaultFetch = globalThis.fetch;
+    if (!defaultFetch) {
+      throw new Error("Global fetch is not available in this runtime.");
+    }
+
+    const seenPaths: string[] = [];
+    const customFetch: typeof fetch = async (input, init) => {
+      const outgoing = new Request(input, init);
+      const parsed = new URL(outgoing.url);
+      seenPaths.push(parsed.pathname);
+
+      const forwardedUrl = new URL(`${parsed.pathname}${parsed.search}`, baseUrl);
+      const forwarded = new Request(forwardedUrl.toString(), outgoing);
+      return defaultFetch(forwarded);
+    };
+
+    const sdk = await SandboxAgent.connect({
+      token,
+      fetch: customFetch,
+    });
+
+    await sdk.getHealth();
+    const session = await sdk.createSession({ agent: "mock" });
+    const prompt = await session.prompt([{ type: "text", text: "custom fetch integration test" }]);
+    expect(prompt.stopReason).toBe("end_turn");
+
+    expect(seenPaths).toContain("/v1/health");
+    expect(seenPaths.some((path) => path.startsWith("/v1/acp/"))).toBe(true);
+
+    await sdk.dispose();
+  });
+
+  it("requires baseUrl when fetch is not provided", async () => {
+    await expect(SandboxAgent.connect({ token } as any)).rejects.toThrow(
+      "baseUrl is required unless fetch is provided.",
+    );
+  });
+
   it("restores a session on stale connection by recreating and replaying history on first prompt", async () => {
     const persist = new InMemorySessionPersistDriver({
       maxEventsPerSession: 200,
