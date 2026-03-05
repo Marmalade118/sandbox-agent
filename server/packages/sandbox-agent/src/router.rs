@@ -1151,6 +1151,10 @@ async fn post_v1_fs_upload_batch(
     }))
 }
 
+/// Get process runtime configuration.
+///
+/// Returns the current runtime configuration for the process management API,
+/// including limits for concurrency, timeouts, and buffer sizes.
 #[utoipa::path(
     get,
     path = "/v1/processes/config",
@@ -1171,6 +1175,10 @@ async fn get_v1_processes_config(
     Ok(Json(map_process_config(config)))
 }
 
+/// Update process runtime configuration.
+///
+/// Replaces the runtime configuration for the process management API.
+/// Validates that all values are non-zero and clamps default timeout to max.
 #[utoipa::path(
     post,
     path = "/v1/processes/config",
@@ -1197,6 +1205,10 @@ async fn post_v1_processes_config(
     Ok(Json(map_process_config(updated)))
 }
 
+/// Create a long-lived managed process.
+///
+/// Spawns a new process with the given command and arguments. Supports both
+/// pipe-based and PTY (tty) modes. Returns the process descriptor on success.
 #[utoipa::path(
     post,
     path = "/v1/processes",
@@ -1232,6 +1244,10 @@ async fn post_v1_processes(
     Ok(Json(map_process_snapshot(snapshot)))
 }
 
+/// Run a one-shot command.
+///
+/// Executes a command to completion and returns its stdout, stderr, exit code,
+/// and duration. Supports configurable timeout and output size limits.
 #[utoipa::path(
     post,
     path = "/v1/processes/run",
@@ -1274,6 +1290,10 @@ async fn post_v1_processes_run(
     }))
 }
 
+/// List all managed processes.
+///
+/// Returns a list of all processes (running and exited) currently tracked
+/// by the runtime, sorted by process ID.
 #[utoipa::path(
     get,
     path = "/v1/processes",
@@ -1296,6 +1316,10 @@ async fn get_v1_processes(
     }))
 }
 
+/// Get a single process by ID.
+///
+/// Returns the current state of a managed process including its status,
+/// PID, exit code, and creation/exit timestamps.
 #[utoipa::path(
     get,
     path = "/v1/processes/{id}",
@@ -1321,6 +1345,10 @@ async fn get_v1_process(
     Ok(Json(map_process_snapshot(snapshot)))
 }
 
+/// Send SIGTERM to a process.
+///
+/// Sends SIGTERM to the process and optionally waits up to `waitMs`
+/// milliseconds for the process to exit before returning.
 #[utoipa::path(
     post,
     path = "/v1/processes/{id}/stop",
@@ -1351,6 +1379,10 @@ async fn post_v1_process_stop(
     Ok(Json(map_process_snapshot(snapshot)))
 }
 
+/// Send SIGKILL to a process.
+///
+/// Sends SIGKILL to the process and optionally waits up to `waitMs`
+/// milliseconds for the process to exit before returning.
 #[utoipa::path(
     post,
     path = "/v1/processes/{id}/kill",
@@ -1381,6 +1413,10 @@ async fn post_v1_process_kill(
     Ok(Json(map_process_snapshot(snapshot)))
 }
 
+/// Delete a process record.
+///
+/// Removes a stopped process from the runtime. Returns 409 if the process
+/// is still running; stop or kill it first.
 #[utoipa::path(
     delete,
     path = "/v1/processes/{id}",
@@ -1407,6 +1443,11 @@ async fn delete_v1_process(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Fetch process logs.
+///
+/// Returns buffered log entries for a process. Supports filtering by stream
+/// type, tail count, and sequence-based resumption. When `follow=true`,
+/// returns an SSE stream that replays buffered entries then streams live output.
 #[utoipa::path(
     get,
     path = "/v1/processes/{id}/logs",
@@ -1506,6 +1547,11 @@ async fn get_v1_process_logs(
     .into_response())
 }
 
+/// Write input to a process.
+///
+/// Sends data to a process's stdin (pipe mode) or PTY writer (tty mode).
+/// Data can be encoded as base64, utf8, or text. Returns 413 if the decoded
+/// payload exceeds the configured `maxInputBytesPerRequest` limit.
 #[utoipa::path(
     post,
     path = "/v1/processes/{id}/input",
@@ -1546,6 +1592,10 @@ async fn post_v1_process_input(
     Ok(Json(ProcessInputResponse { bytes_written }))
 }
 
+/// Resize a process terminal.
+///
+/// Sets the PTY window size (columns and rows) for a tty-mode process and
+/// sends SIGWINCH so the child process can adapt.
 #[utoipa::path(
     post,
     path = "/v1/processes/{id}/terminal/resize",
@@ -1581,6 +1631,12 @@ async fn post_v1_process_terminal_resize(
     }))
 }
 
+/// Open an interactive WebSocket terminal session.
+///
+/// Upgrades the connection to a WebSocket for bidirectional PTY I/O. Accepts
+/// `access_token` query param for browser-based auth (WebSocket API cannot
+/// send custom headers). Streams raw PTY output as binary frames and accepts
+/// JSON control frames for input, resize, and close.
 #[utoipa::path(
     get,
     path = "/v1/processes/{id}/terminal/ws",
@@ -1677,6 +1733,11 @@ async fn process_terminal_ws_session(
                                         continue;
                                     }
                                 };
+                                let max_input = runtime.max_input_bytes().await;
+                                if input.len() > max_input {
+                                    let _ = send_ws_error(&mut socket, &format!("input payload exceeds maxInputBytesPerRequest ({max_input})")).await;
+                                    continue;
+                                }
                                 if let Err(err) = runtime.write_input(&id, &input).await {
                                     let _ = send_ws_error(&mut socket, &err.to_string()).await;
                                 }

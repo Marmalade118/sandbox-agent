@@ -56,7 +56,47 @@ fn query_param(query: &str, key: &str) -> Option<String> {
     query
         .split('&')
         .filter_map(|part| part.split_once('='))
-        .find_map(|(k, v)| if k == key { Some(v.to_string()) } else { None })
+        .find_map(|(k, v)| {
+            if k == key {
+                Some(percent_decode(v))
+            } else {
+                None
+            }
+        })
+}
+
+fn percent_decode(input: &str) -> String {
+    let mut output = Vec::with_capacity(input.len());
+    let bytes = input.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(hi), Some(lo)) = (
+                hex_nibble(bytes[i + 1]),
+                hex_nibble(bytes[i + 2]),
+            ) {
+                output.push((hi << 4) | lo);
+                i += 3;
+                continue;
+            }
+        }
+        if bytes[i] == b'+' {
+            output.push(b' ');
+        } else {
+            output.push(bytes[i]);
+        }
+        i += 1;
+    }
+    String::from_utf8(output).unwrap_or_else(|_| input.to_string())
+}
+
+fn hex_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
 }
 
 pub(super) type PinBoxSseStream = crate::acp_proxy_runtime::PinBoxSseStream;
@@ -515,15 +555,16 @@ pub(super) fn problem_from_sandbox_error(error: &SandboxError) -> ProblemDetails
 
     match error {
         SandboxError::InvalidRequest { message } => {
-            if message.starts_with("process not found:") {
-                problem.status = 404;
-                problem.title = "Not Found".to_string();
-            } else if message.starts_with("input payload exceeds maxInputBytesPerRequest") {
+            if message.starts_with("input payload exceeds maxInputBytesPerRequest") {
                 problem.status = 413;
                 problem.title = "Payload Too Large".to_string();
             } else {
                 problem.status = 400;
             }
+        }
+        SandboxError::NotFound { .. } => {
+            problem.status = 404;
+            problem.title = "Not Found".to_string();
         }
         SandboxError::Timeout { .. } => {
             problem.status = 504;

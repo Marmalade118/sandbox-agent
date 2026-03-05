@@ -502,8 +502,9 @@ impl ProcessRuntime {
 
     async fn lookup_process(&self, id: &str) -> Result<Arc<ManagedProcess>, SandboxError> {
         let process = self.inner.processes.read().await.get(id).cloned();
-        process.ok_or_else(|| SandboxError::InvalidRequest {
-            message: format!("process not found: {id}"),
+        process.ok_or_else(|| SandboxError::NotFound {
+            resource: "process".to_string(),
+            id: id.to_string(),
         })
     }
 
@@ -970,7 +971,7 @@ fn send_signal(pid: u32, signal: i32) -> Result<(), SandboxError> {
     }
 
     let err = std::io::Error::last_os_error();
-    if err.kind() == std::io::ErrorKind::NotFound {
+    if err.raw_os_error() == Some(libc::ESRCH) {
         return Ok(());
     }
 
