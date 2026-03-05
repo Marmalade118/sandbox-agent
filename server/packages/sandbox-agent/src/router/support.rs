@@ -221,7 +221,7 @@ fn parse_agent_config(json_str: &str) -> Vec<Value> {
             "name": "Mode",
             "category": "mode",
             "type": "select",
-            "currentValue": config.default_mode.unwrap_or_else(|| modes[0].id.clone()),
+            "currentValue": config.default_mode.or_else(|| modes.first().map(|m| m.id.clone())).unwrap_or_default(),
             "options": modes.iter().map(|m| json!({
                 "value": m.id,
                 "name": m.name,
@@ -235,7 +235,7 @@ fn parse_agent_config(json_str: &str) -> Vec<Value> {
             "name": "Thought Level",
             "category": "thought_level",
             "type": "select",
-            "currentValue": config.default_thought_level.unwrap_or_else(|| thought_levels[0].id.clone()),
+            "currentValue": config.default_thought_level.or_else(|| thought_levels.first().map(|t| t.id.clone())).unwrap_or_default(),
             "options": thought_levels.iter().map(|t| json!({
                 "value": t.id,
                 "name": t.name,
