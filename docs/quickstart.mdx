@@ -188,6 +188,8 @@ icon: "rocket"
               token: process.env.SANDBOX_TOKEN,
             });
             ```
+
+            `SandboxAgent.connect(...)` waits for `/v1/health` by default. Pass `waitForHealth: false` to disable that behavior, or `waitForHealth: { timeoutMs: 120_000 }` to cap the wait.
           </Tab>
 
           <Tab title="curl">
