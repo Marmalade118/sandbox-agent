@@ -89,6 +89,16 @@ export type ProcessTerminalServerFrame =
   | ProcessTerminalExitFrame
   | ProcessTerminalErrorFrame;
 
+export type TerminalReadyStatus = ProcessTerminalReadyFrame;
+export type TerminalExitStatus = ProcessTerminalExitFrame;
+export type TerminalErrorStatus = ProcessTerminalErrorFrame;
+export type TerminalStatusMessage = ProcessTerminalServerFrame;
+
+export interface TerminalResizePayload {
+  cols: number;
+  rows: number;
+}
+
 export interface SessionRecord {
   id: string;
   agent: string;

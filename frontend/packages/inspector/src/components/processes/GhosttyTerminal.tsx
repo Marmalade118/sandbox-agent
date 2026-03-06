@@ -3,35 +3,6 @@ import { FitAddon, Terminal, init } from "ghostty-web";
 import { useEffect, useRef, useState } from "react";
 import type { SandboxAgent } from "sandbox-agent";
 
-type ProcessTerminalClientFrame =
-  | {
-      type: "input";
-      data: string;
-      encoding?: string;
-    }
-  | {
-      type: "resize";
-      cols: number;
-      rows: number;
-    }
-  | {
-      type: "close";
-    };
-
-type ProcessTerminalServerFrame =
-  | {
-      type: "ready";
-      processId: string;
-    }
-  | {
-      type: "exit";
-      exitCode?: number | null;
-    }
-  | {
-      type: "error";
-      message: string;
-    };
-
 type ConnectionState = "connecting" | "ready" | "closed" | "error";
 
 const terminalTheme = {
@@ -76,21 +47,19 @@ const GhosttyTerminal = ({
     let cancelled = false;
     let terminal: Terminal | null = null;
     let fitAddon: FitAddon | null = null;
-    let socket: WebSocket | null = null;
+    let session: ReturnType<SandboxAgent["connectProcessTerminal"]> | null = null;
     let resizeRaf = 0;
     let removeDataListener: { dispose(): void } | null = null;
     let removeResizeListener: { dispose(): void } | null = null;
 
     const syncSize = () => {
-      if (!terminal || !socket || socket.readyState !== WebSocket.OPEN) {
+      if (!terminal || !session) {
         return;
       }
-      const frame: ProcessTerminalClientFrame = {
-        type: "resize",
+      session.resize({
         cols: terminal.cols,
         rows: terminal.rows,
-      };
-      socket.send(JSON.stringify(frame));
+      });
     };
 
     const connect = async () => {
@@ -118,14 +87,7 @@ const GhosttyTerminal = ({
         terminal.focus();
 
         removeDataListener = terminal.onData((data) => {
-          if (!socket || socket.readyState !== WebSocket.OPEN) {
-            return;
-          }
-          const frame: ProcessTerminalClientFrame = {
-            type: "input",
-            data,
-          };
-          socket.send(JSON.stringify(frame));
+          session?.sendInput(data);
         });
 
         removeResizeListener = terminal.onResize(() => {
@@ -135,64 +97,50 @@ const GhosttyTerminal = ({
           resizeRaf = window.requestAnimationFrame(syncSize);
         });
 
-        const nextSocket = client.connectProcessTerminalWebSocket(processId);
-        nextSocket.binaryType = "arraybuffer";
-        socket = nextSocket;
+        const nextSession = client.connectProcessTerminal(processId);
+        session = nextSession;
 
-        nextSocket.addEventListener("message", async (event) => {
+        nextSession.onReady((frame) => {
           if (cancelled) {
             return;
           }
-
-          if (typeof event.data === "string") {
-            const frame = parseServerFrame(event.data);
-            if (!frame) {
-              setConnectionState("error");
-              setStatusMessage("Received invalid terminal control frame.");
-              return;
-            }
-
-            if (frame.type === "ready") {
-              setConnectionState("ready");
-              setStatusMessage("Connected");
-              syncSize();
-              return;
-            }
-
-            if (frame.type === "exit") {
-              setConnectionState("closed");
-              setExitCode(frame.exitCode ?? null);
-              setStatusMessage(
-                frame.exitCode == null ? "Process exited." : `Process exited with code ${frame.exitCode}.`
-              );
-              onExit?.();
-              return;
-            }
-
-            setConnectionState("error");
-            setStatusMessage(frame.message);
-            return;
-          }
-
-          if (!terminal) {
-            return;
-          }
-
-          const bytes = await decodeBinaryFrame(event.data);
-          if (!cancelled) {
-            terminal.write(bytes);
+          if (frame.type === "ready") {
+            setConnectionState("ready");
+            setStatusMessage("Connected");
+            syncSize();
           }
         });
 
-        nextSocket.addEventListener("error", () => {
+        nextSession.onData((bytes) => {
+          if (cancelled || !terminal) {
+            return;
+          }
+          terminal.write(bytes);
+        });
+
+        nextSession.onExit((frame) => {
+          if (cancelled) {
+            return;
+          }
+          if (frame.type === "exit") {
+            setConnectionState("closed");
+            setExitCode(frame.exitCode ?? null);
+            setStatusMessage(
+              frame.exitCode == null ? "Process exited." : `Process exited with code ${frame.exitCode}.`
+            );
+            onExit?.();
+          }
+        });
+
+        nextSession.onError((error) => {
           if (cancelled) {
             return;
           }
           setConnectionState("error");
-          setStatusMessage("Terminal websocket connection failed.");
+          setStatusMessage(error instanceof Error ? error.message : error.message);
         });
 
-        nextSocket.addEventListener("close", () => {
+        nextSession.onClose(() => {
           if (cancelled) {
             return;
           }
@@ -217,11 +165,7 @@ const GhosttyTerminal = ({
       }
       removeDataListener?.dispose();
       removeResizeListener?.dispose();
-      if (socket?.readyState === WebSocket.OPEN) {
-        const frame: ProcessTerminalClientFrame = { type: "close" };
-        socket.send(JSON.stringify(frame));
-      }
-      socket?.close();
+      session?.close();
       terminal?.dispose();
     };
   }, [client, onExit, processId]);
@@ -252,59 +196,5 @@ const GhosttyTerminal = ({
     </div>
   );
 };
-
-function parseServerFrame(payload: string): ProcessTerminalServerFrame | null {
-  try {
-    const parsed = JSON.parse(payload) as unknown;
-    if (!parsed || typeof parsed !== "object" || !("type" in parsed)) {
-      return null;
-    }
-
-    if (
-      parsed.type === "ready" &&
-      "processId" in parsed &&
-      typeof parsed.processId === "string"
-    ) {
-      return parsed as ProcessTerminalServerFrame;
-    }
-
-    if (
-      parsed.type === "exit" &&
-      (!("exitCode" in parsed) ||
-        parsed.exitCode == null ||
-        typeof parsed.exitCode === "number")
-    ) {
-      return parsed as ProcessTerminalServerFrame;
-    }
-
-    if (
-      parsed.type === "error" &&
-      "message" in parsed &&
-      typeof parsed.message === "string"
-    ) {
-      return parsed as ProcessTerminalServerFrame;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-async function decodeBinaryFrame(data: unknown): Promise<Uint8Array> {
-  if (data instanceof ArrayBuffer) {
-    return new Uint8Array(data);
-  }
-
-  if (ArrayBuffer.isView(data)) {
-    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength).slice();
-  }
-
-  if (typeof Blob !== "undefined" && data instanceof Blob) {
-    return new Uint8Array(await data.arrayBuffer());
-  }
-
-  throw new Error(`Unsupported terminal payload: ${String(data)}`);
-}
 
 export default GhosttyTerminal;

@@ -35,6 +35,7 @@ console.log(url);
 - Prompt testing
 - Request/response debugging
 - Process management (create, stop, kill, delete, view logs)
+- Interactive PTY terminal for tty processes
 - One-shot command execution
 
 ## When to use
@@ -42,3 +43,9 @@ console.log(url);
 - Development: validate session behavior quickly
 - Debugging: inspect raw event payloads
 - Integration work: compare UI behavior with SDK/API calls
+
+## Process terminal
+
+The Inspector includes an embedded Ghostty-based terminal for interactive tty
+processes. The UI uses the SDK's high-level `connectProcessTerminal(...)`
+wrapper rather than wiring raw websocket frames directly.

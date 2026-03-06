@@ -1,5 +1,6 @@
 export {
   LiveAcpConnection,
+  ProcessTerminalSession,
   SandboxAgent,
   SandboxAgentError,
   Session,
@@ -19,6 +20,7 @@ export type {
   ProcessLogListener,
   ProcessLogSubscription,
   ProcessTerminalConnectOptions,
+  ProcessTerminalSessionOptions,
   ProcessTerminalWebSocketUrlOptions,
   SandboxAgentConnectOptions,
   SandboxAgentStartOptions,
@@ -88,6 +90,11 @@ export type {
   SessionRecord,
   SkillsConfig,
   SkillsConfigQuery,
+  TerminalErrorStatus,
+  TerminalExitStatus,
+  TerminalReadyStatus,
+  TerminalResizePayload,
+  TerminalStatusMessage,
 } from "./types.ts";
 
 export type {
