@@ -12,6 +12,7 @@ import {
 } from "../src/index.ts";
 import { spawnSandboxAgent, isNodeRuntime, type SandboxAgentSpawnHandle } from "../src/spawn.ts";
 import { prepareMockAgentDataHome } from "./helpers/mock-agent.ts";
+import WebSocket from "ws";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -589,7 +590,9 @@ describe("Integration: TypeScript SDK flat session API", () => {
       const wsUrl = sdk.buildProcessTerminalWebSocketUrl(ttyProcess.id);
       expect(wsUrl.startsWith("ws://") || wsUrl.startsWith("wss://")).toBe(true);
 
-      const ws = sdk.connectProcessTerminalWebSocket(ttyProcess.id);
+      const ws = sdk.connectProcessTerminalWebSocket(ttyProcess.id, {
+        WebSocket: WebSocket as unknown as typeof globalThis.WebSocket,
+      });
       ws.binaryType = "arraybuffer";
 
       const socketTextFrames: string[] = [];
