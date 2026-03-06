@@ -948,6 +948,785 @@
           }
         }
       }
+    },
+    "/v1/processes": {
+      "get": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "get_v1_processes",
+        "responses": {
+          "200": {
+            "description": "List processes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessListResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "post_v1_processes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Started process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Process limit or state conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/processes/config": {
+      "get": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "get_v1_processes_config",
+        "responses": {
+          "200": {
+            "description": "Current runtime process config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessConfig"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "post_v1_processes_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated runtime process config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/processes/run": {
+      "post": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "post_v1_processes_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "One-off command result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/processes/{id}": {
+      "get": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "get_v1_process",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Process ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Process details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "delete_v1_process",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Process ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Process deleted"
+          },
+          "404": {
+            "description": "Unknown process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Process is still running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/processes/{id}/input": {
+      "post": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "post_v1_process_input",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Process ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessInputRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Input accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInputResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Process not writable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Input exceeds configured limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/processes/{id}/kill": {
+      "post": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "post_v1_process_kill",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Process ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "waitMs",
+            "in": "query",
+            "description": "Wait up to N ms for process to exit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kill signal sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/processes/{id}/logs": {
+      "get": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "get_v1_process_logs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Process ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stream",
+            "in": "query",
+            "description": "stdout|stderr|combined|pty",
+            "required": false,
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ProcessLogsStream"
+                }
+              ],
+              "nullable": true
+            }
+          },
+          {
+            "name": "tail",
+            "in": "query",
+            "description": "Tail N entries",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "follow",
+            "in": "query",
+            "description": "Follow via SSE",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "nullable": true
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Only entries with sequence greater than this",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Process logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessLogsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/processes/{id}/stop": {
+      "post": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "post_v1_process_stop",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Process ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "waitMs",
+            "in": "query",
+            "description": "Wait up to N ms for process to exit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stop signal sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/processes/{id}/terminal/resize": {
+      "post": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "post_v1_process_terminal_resize",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Process ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessTerminalResizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resize accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessTerminalResizeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not a terminal process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/processes/{id}/terminal/ws": {
+      "get": {
+        "tags": [
+          "v1"
+        ],
+        "operationId": "get_v1_process_terminal_ws",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Process ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "access_token",
+            "in": "query",
+            "description": "Bearer token alternative for WS auth",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket upgraded"
+          },
+          "400": {
+            "description": "Invalid websocket frame or upgrade request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not a terminal process",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Process API unsupported on this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1595,6 +2374,399 @@
           }
         },
         "additionalProperties": {}
+      },
+      "ProcessConfig": {
+        "type": "object",
+        "required": [
+          "maxConcurrentProcesses",
+          "defaultRunTimeoutMs",
+          "maxRunTimeoutMs",
+          "maxOutputBytes",
+          "maxLogBytesPerProcess",
+          "maxInputBytesPerRequest"
+        ],
+        "properties": {
+          "defaultRunTimeoutMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "maxConcurrentProcesses": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxInputBytesPerRequest": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxLogBytesPerProcess": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxOutputBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxRunTimeoutMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "ProcessCreateRequest": {
+        "type": "object",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "command": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string",
+            "nullable": true
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "interactive": {
+            "type": "boolean"
+          },
+          "tty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProcessInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "command",
+          "args",
+          "tty",
+          "interactive",
+          "status",
+          "createdAtMs"
+        ],
+        "properties": {
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "command": {
+            "type": "string"
+          },
+          "createdAtMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cwd": {
+            "type": "string",
+            "nullable": true
+          },
+          "exitCode": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "exitedAtMs": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "interactive": {
+            "type": "boolean"
+          },
+          "pid": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProcessState"
+          },
+          "tty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProcessInputRequest": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ProcessInputResponse": {
+        "type": "object",
+        "required": [
+          "bytesWritten"
+        ],
+        "properties": {
+          "bytesWritten": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ProcessListResponse": {
+        "type": "object",
+        "required": [
+          "processes"
+        ],
+        "properties": {
+          "processes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessInfo"
+            }
+          }
+        }
+      },
+      "ProcessLogEntry": {
+        "type": "object",
+        "required": [
+          "sequence",
+          "stream",
+          "timestampMs",
+          "data",
+          "encoding"
+        ],
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "stream": {
+            "$ref": "#/components/schemas/ProcessLogsStream"
+          },
+          "timestampMs": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ProcessLogsQuery": {
+        "type": "object",
+        "properties": {
+          "follow": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "since": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
+          },
+          "stream": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessLogsStream"
+              }
+            ],
+            "nullable": true
+          },
+          "tail": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          }
+        }
+      },
+      "ProcessLogsResponse": {
+        "type": "object",
+        "required": [
+          "processId",
+          "stream",
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessLogEntry"
+            }
+          },
+          "processId": {
+            "type": "string"
+          },
+          "stream": {
+            "$ref": "#/components/schemas/ProcessLogsStream"
+          }
+        }
+      },
+      "ProcessLogsStream": {
+        "type": "string",
+        "enum": [
+          "stdout",
+          "stderr",
+          "combined",
+          "pty"
+        ]
+      },
+      "ProcessRunRequest": {
+        "type": "object",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "command": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string",
+            "nullable": true
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "maxOutputBytes": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
+          }
+        }
+      },
+      "ProcessRunResponse": {
+        "type": "object",
+        "required": [
+          "timedOut",
+          "stdout",
+          "stderr",
+          "stdoutTruncated",
+          "stderrTruncated",
+          "durationMs"
+        ],
+        "properties": {
+          "durationMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "exitCode": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "stderrTruncated": {
+            "type": "boolean"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stdoutTruncated": {
+            "type": "boolean"
+          },
+          "timedOut": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProcessSignalQuery": {
+        "type": "object",
+        "properties": {
+          "waitMs": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
+          }
+        }
+      },
+      "ProcessState": {
+        "type": "string",
+        "enum": [
+          "running",
+          "exited"
+        ]
+      },
+      "ProcessTerminalResizeRequest": {
+        "type": "object",
+        "required": [
+          "cols",
+          "rows"
+        ],
+        "properties": {
+          "cols": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "ProcessTerminalResizeResponse": {
+        "type": "object",
+        "required": [
+          "cols",
+          "rows"
+        ],
+        "properties": {
+          "cols": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
       },
       "ServerStatus": {
         "type": "string",

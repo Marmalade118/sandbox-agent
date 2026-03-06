@@ -12,6 +12,7 @@ import {
 } from "../src/index.ts";
 import { spawnSandboxAgent, isNodeRuntime, type SandboxAgentSpawnHandle } from "../src/spawn.ts";
 import { prepareMockAgentDataHome } from "./helpers/mock-agent.ts";
+import WebSocket from "ws";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +65,107 @@ async function waitFor<T>(
   throw new Error("timed out waiting for condition");
 }
 
+async function waitForAsync<T>(
+  fn: () => Promise<T | undefined | null>,
+  timeoutMs = 6000,
+  stepMs = 30,
+): Promise<T> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const value = await fn();
+    if (value !== undefined && value !== null) {
+      return value;
+    }
+    await sleep(stepMs);
+  }
+  throw new Error("timed out waiting for condition");
+}
+
+function buildTarArchive(entries: Array<{ name: string; content: string }>): Uint8Array {
+  const blocks: Buffer[] = [];
+
+  for (const entry of entries) {
+    const content = Buffer.from(entry.content, "utf8");
+    const header = Buffer.alloc(512, 0);
+
+    writeTarString(header, 0, 100, entry.name);
+    writeTarOctal(header, 100, 8, 0o644);
+    writeTarOctal(header, 108, 8, 0);
+    writeTarOctal(header, 116, 8, 0);
+    writeTarOctal(header, 124, 12, content.length);
+    writeTarOctal(header, 136, 12, Math.floor(Date.now() / 1000));
+    header.fill(0x20, 148, 156);
+    header[156] = "0".charCodeAt(0);
+    writeTarString(header, 257, 6, "ustar");
+    writeTarString(header, 263, 2, "00");
+
+    let checksum = 0;
+    for (const byte of header) {
+      checksum += byte;
+    }
+    writeTarChecksum(header, checksum);
+
+    blocks.push(header);
+    blocks.push(content);
+
+    const remainder = content.length % 512;
+    if (remainder !== 0) {
+      blocks.push(Buffer.alloc(512 - remainder, 0));
+    }
+  }
+
+  blocks.push(Buffer.alloc(1024, 0));
+  return Buffer.concat(blocks);
+}
+
+function writeTarString(buffer: Buffer, offset: number, length: number, value: string): void {
+  const bytes = Buffer.from(value, "utf8");
+  bytes.copy(buffer, offset, 0, Math.min(bytes.length, length));
+}
+
+function writeTarOctal(buffer: Buffer, offset: number, length: number, value: number): void {
+  const rendered = value.toString(8).padStart(length - 1, "0");
+  writeTarString(buffer, offset, length, rendered);
+  buffer[offset + length - 1] = 0;
+}
+
+function writeTarChecksum(buffer: Buffer, checksum: number): void {
+  const rendered = checksum.toString(8).padStart(6, "0");
+  writeTarString(buffer, 148, 6, rendered);
+  buffer[154] = 0;
+  buffer[155] = 0x20;
+}
+
+function decodeSocketPayload(data: unknown): string {
+  if (typeof data === "string") {
+    return data;
+  }
+  if (data instanceof ArrayBuffer) {
+    return Buffer.from(data).toString("utf8");
+  }
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString("utf8");
+  }
+  if (typeof Blob !== "undefined" && data instanceof Blob) {
+    throw new Error("Blob socket payloads are not supported in this test");
+  }
+  throw new Error(`Unsupported socket payload type: ${typeof data}`);
+}
+
+function decodeProcessLogData(data: string, encoding: string): string {
+  if (encoding === "base64") {
+    return Buffer.from(data, "base64").toString("utf8");
+  }
+  return data;
+}
+
+function nodeCommand(source: string): { command: string; args: string[] } {
+  return {
+    command: process.execPath,
+    args: ["-e", source],
+  };
+}
+
 describe("Integration: TypeScript SDK flat session API", () => {
   let handle: SandboxAgentSpawnHandle;
   let baseUrl: string;
@@ -72,15 +174,13 @@ describe("Integration: TypeScript SDK flat session API", () => {
 
   beforeAll(async () => {
     dataHome = mkdtempSync(join(tmpdir(), "sdk-integration-"));
-    prepareMockAgentDataHome(dataHome);
+    const agentEnv = prepareMockAgentDataHome(dataHome);
 
     handle = await spawnSandboxAgent({
       enabled: true,
       log: "silent",
       timeoutMs: 30000,
-      env: {
-        XDG_DATA_HOME: dataHome,
-      },
+      env: agentEnv,
     });
     baseUrl = handle.baseUrl;
     token = handle.token;
@@ -122,6 +222,9 @@ describe("Integration: TypeScript SDK flat session API", () => {
     const fetched = await sdk.getSession(session.id);
     expect(fetched?.agent).toBe("mock");
 
+    const acpServers = await sdk.listAcpServers();
+    expect(acpServers.servers.some((server) => server.agent === "mock")).toBe(true);
+
     const events = await sdk.getEvents({ sessionId: session.id, limit: 100 });
     expect(events.items.length).toBeGreaterThan(0);
     expect(events.items.some((event) => event.sender === "client")).toBe(true);
@@ -135,6 +238,64 @@ describe("Integration: TypeScript SDK flat session API", () => {
 
     off();
     await sdk.dispose();
+  });
+
+  it("covers agent query flags and filesystem HTTP helpers", async () => {
+    const sdk = await SandboxAgent.connect({
+      baseUrl,
+      token,
+    });
+
+    const directory = mkdtempSync(join(tmpdir(), "sdk-fs-"));
+    const nestedDir = join(directory, "nested");
+    const filePath = join(directory, "notes.txt");
+    const movedPath = join(directory, "notes-moved.txt");
+    const uploadDir = join(directory, "uploaded");
+
+    try {
+      const listedAgents = await sdk.listAgents({ config: true, noCache: true });
+      expect(listedAgents.agents.some((agent) => agent.id === "mock")).toBe(true);
+
+      const mockAgent = await sdk.getAgent("mock", { config: true, noCache: true });
+      expect(mockAgent.id).toBe("mock");
+      expect(Array.isArray(mockAgent.configOptions)).toBe(true);
+
+      await sdk.mkdirFs({ path: nestedDir });
+      await sdk.writeFsFile({ path: filePath }, "hello from sdk");
+
+      const bytes = await sdk.readFsFile({ path: filePath });
+      expect(new TextDecoder().decode(bytes)).toBe("hello from sdk");
+
+      const stat = await sdk.statFs({ path: filePath });
+      expect(stat.path).toBe(filePath);
+      expect(stat.size).toBe(bytes.byteLength);
+
+      const entries = await sdk.listFsEntries({ path: directory });
+      expect(entries.some((entry) => entry.path === nestedDir)).toBe(true);
+      expect(entries.some((entry) => entry.path === filePath)).toBe(true);
+
+      const moved = await sdk.moveFs({
+        from: filePath,
+        to: movedPath,
+        overwrite: true,
+      });
+      expect(moved.to).toBe(movedPath);
+
+      const uploadResult = await sdk.uploadFsBatch(
+        buildTarArchive([{ name: "batch.txt", content: "batch upload works" }]),
+        { path: uploadDir },
+      );
+      expect(uploadResult.paths.some((path) => path.endsWith("batch.txt"))).toBe(true);
+
+      const uploaded = await sdk.readFsFile({ path: join(uploadDir, "batch.txt") });
+      expect(new TextDecoder().decode(uploaded)).toBe("batch upload works");
+
+      const deleted = await sdk.deleteFsEntry({ path: movedPath });
+      expect(deleted.path).toBe(movedPath);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+      await sdk.dispose();
+    }
   });
 
   it("uses custom fetch for both HTTP helpers and ACP session traffic", async () => {
@@ -168,7 +329,7 @@ describe("Integration: TypeScript SDK flat session API", () => {
     expect(seenPaths.some((path) => path.startsWith("/v1/acp/"))).toBe(true);
 
     await sdk.dispose();
-  });
+  }, 60_000);
 
   it("requires baseUrl when fetch is not provided", async () => {
     await expect(SandboxAgent.connect({ token } as any)).rejects.toThrow(
@@ -440,5 +601,187 @@ describe("Integration: TypeScript SDK flat session API", () => {
 
     await sdk.dispose();
     rmSync(directory, { recursive: true, force: true });
+  });
+
+  it("covers process runtime HTTP helpers, log streaming, and terminal websocket access", async () => {
+    const sdk = await SandboxAgent.connect({
+      baseUrl,
+      token,
+    });
+
+    const originalConfig = await sdk.getProcessConfig();
+    const updatedConfig = await sdk.setProcessConfig({
+      ...originalConfig,
+      maxOutputBytes: originalConfig.maxOutputBytes + 1,
+    });
+    expect(updatedConfig.maxOutputBytes).toBe(originalConfig.maxOutputBytes + 1);
+
+    const runResult = await sdk.runProcess({
+      ...nodeCommand("process.stdout.write('run-stdout'); process.stderr.write('run-stderr');"),
+      timeoutMs: 5_000,
+    });
+    expect(runResult.stdout).toContain("run-stdout");
+    expect(runResult.stderr).toContain("run-stderr");
+
+    let interactiveProcessId: string | undefined;
+    let ttyProcessId: string | undefined;
+    let killProcessId: string | undefined;
+
+    try {
+      const interactiveProcess = await sdk.createProcess({
+        ...nodeCommand(`
+          process.stdin.setEncoding("utf8");
+          process.stdout.write("ready\\n");
+          process.stdin.on("data", (chunk) => {
+            process.stdout.write("echo:" + chunk);
+          });
+          setInterval(() => {}, 1_000);
+        `),
+        interactive: true,
+      });
+      interactiveProcessId = interactiveProcess.id;
+
+      const listed = await sdk.listProcesses();
+      expect(listed.processes.some((process) => process.id === interactiveProcess.id)).toBe(true);
+
+      const fetched = await sdk.getProcess(interactiveProcess.id);
+      expect(fetched.status).toBe("running");
+
+      const initialLogs = await waitForAsync(async () => {
+        const logs = await sdk.getProcessLogs(interactiveProcess.id, { tail: 10 });
+        return logs.entries.some((entry) => decodeProcessLogData(entry.data, entry.encoding).includes("ready"))
+          ? logs
+          : undefined;
+      });
+      expect(
+        initialLogs.entries.some((entry) => decodeProcessLogData(entry.data, entry.encoding).includes("ready")),
+      ).toBe(true);
+
+      const followedLogs: string[] = [];
+      const subscription = await sdk.followProcessLogs(
+        interactiveProcess.id,
+        (entry) => {
+          followedLogs.push(decodeProcessLogData(entry.data, entry.encoding));
+        },
+        { tail: 1 },
+      );
+
+      try {
+        const inputResult = await sdk.sendProcessInput(interactiveProcess.id, {
+          data: Buffer.from("hello over stdin\n", "utf8").toString("base64"),
+          encoding: "base64",
+        });
+        expect(inputResult.bytesWritten).toBeGreaterThan(0);
+
+        await waitFor(() => {
+          const joined = followedLogs.join("");
+          return joined.includes("echo:hello over stdin") ? joined : undefined;
+        });
+      } finally {
+        subscription.close();
+        await subscription.closed;
+      }
+
+      const stopped = await sdk.stopProcess(interactiveProcess.id, { waitMs: 5_000 });
+      expect(stopped.status).toBe("exited");
+
+      await sdk.deleteProcess(interactiveProcess.id);
+      interactiveProcessId = undefined;
+
+      const ttyProcess = await sdk.createProcess({
+        ...nodeCommand(`
+          process.stdin.setEncoding("utf8");
+          process.stdin.on("data", (chunk) => {
+            process.stdout.write(chunk);
+          });
+          setInterval(() => {}, 1_000);
+        `),
+        interactive: true,
+        tty: true,
+      });
+      ttyProcessId = ttyProcess.id;
+
+      const resized = await sdk.resizeProcessTerminal(ttyProcess.id, {
+        cols: 120,
+        rows: 40,
+      });
+      expect(resized.cols).toBe(120);
+      expect(resized.rows).toBe(40);
+
+      const wsUrl = sdk.buildProcessTerminalWebSocketUrl(ttyProcess.id);
+      expect(wsUrl.startsWith("ws://") || wsUrl.startsWith("wss://")).toBe(true);
+
+      const ws = sdk.connectProcessTerminalWebSocket(ttyProcess.id, {
+        WebSocket: WebSocket as unknown as typeof globalThis.WebSocket,
+      });
+      ws.binaryType = "arraybuffer";
+
+      const socketTextFrames: string[] = [];
+      const socketBinaryFrames: string[] = [];
+      ws.addEventListener("message", (event) => {
+        if (typeof event.data === "string") {
+          socketTextFrames.push(event.data);
+          return;
+        }
+        socketBinaryFrames.push(decodeSocketPayload(event.data));
+      });
+
+      await waitFor(() => {
+        const ready = socketTextFrames.find((frame) => frame.includes('"type":"ready"'));
+        return ready;
+      });
+
+      ws.send(JSON.stringify({
+        type: "input",
+        data: "hello tty\n",
+      }));
+
+      await waitFor(() => {
+        const joined = socketBinaryFrames.join("");
+        return joined.includes("hello tty") ? joined : undefined;
+      });
+
+      ws.close();
+      await waitForAsync(async () => {
+        const processInfo = await sdk.getProcess(ttyProcess.id);
+        return processInfo.status === "running" ? processInfo : undefined;
+      });
+
+      const killedTty = await sdk.killProcess(ttyProcess.id, { waitMs: 5_000 });
+      expect(killedTty.status).toBe("exited");
+
+      await sdk.deleteProcess(ttyProcess.id);
+      ttyProcessId = undefined;
+
+      const killProcess = await sdk.createProcess({
+        ...nodeCommand("setInterval(() => {}, 1_000);"),
+      });
+      killProcessId = killProcess.id;
+
+      const killed = await sdk.killProcess(killProcess.id, { waitMs: 5_000 });
+      expect(killed.status).toBe("exited");
+
+      await sdk.deleteProcess(killProcess.id);
+      killProcessId = undefined;
+    } finally {
+      await sdk.setProcessConfig(originalConfig);
+
+      if (interactiveProcessId) {
+        await sdk.killProcess(interactiveProcessId, { waitMs: 5_000 }).catch(() => {});
+        await sdk.deleteProcess(interactiveProcessId).catch(() => {});
+      }
+
+      if (ttyProcessId) {
+        await sdk.killProcess(ttyProcessId, { waitMs: 5_000 }).catch(() => {});
+        await sdk.deleteProcess(ttyProcessId).catch(() => {});
+      }
+
+      if (killProcessId) {
+        await sdk.killProcess(killProcessId, { waitMs: 5_000 }).catch(() => {});
+        await sdk.deleteProcess(killProcessId).catch(() => {});
+      }
+
+      await sdk.dispose();
+    }
   });
 });

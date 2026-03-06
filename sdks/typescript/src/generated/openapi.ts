@@ -57,6 +57,39 @@ export interface paths {
   "/v1/health": {
     get: operations["get_v1_health"];
   };
+  "/v1/processes": {
+    get: operations["get_v1_processes"];
+    post: operations["post_v1_processes"];
+  };
+  "/v1/processes/config": {
+    get: operations["get_v1_processes_config"];
+    post: operations["post_v1_processes_config"];
+  };
+  "/v1/processes/run": {
+    post: operations["post_v1_processes_run"];
+  };
+  "/v1/processes/{id}": {
+    get: operations["get_v1_process"];
+    delete: operations["delete_v1_process"];
+  };
+  "/v1/processes/{id}/input": {
+    post: operations["post_v1_process_input"];
+  };
+  "/v1/processes/{id}/kill": {
+    post: operations["post_v1_process_kill"];
+  };
+  "/v1/processes/{id}/logs": {
+    get: operations["get_v1_process_logs"];
+  };
+  "/v1/processes/{id}/stop": {
+    post: operations["post_v1_process_stop"];
+  };
+  "/v1/processes/{id}/terminal/resize": {
+    post: operations["post_v1_process_terminal_resize"];
+  };
+  "/v1/processes/{id}/terminal/ws": {
+    get: operations["get_v1_process_terminal_ws"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -229,6 +262,116 @@ export interface components {
       title: string;
       type: string;
       [key: string]: unknown;
+    };
+    ProcessConfig: {
+      /** Format: int64 */
+      defaultRunTimeoutMs: number;
+      maxConcurrentProcesses: number;
+      maxInputBytesPerRequest: number;
+      maxLogBytesPerProcess: number;
+      maxOutputBytes: number;
+      /** Format: int64 */
+      maxRunTimeoutMs: number;
+    };
+    ProcessCreateRequest: {
+      args?: string[];
+      command: string;
+      cwd?: string | null;
+      env?: {
+        [key: string]: string;
+      };
+      interactive?: boolean;
+      tty?: boolean;
+    };
+    ProcessInfo: {
+      args: string[];
+      command: string;
+      /** Format: int64 */
+      createdAtMs: number;
+      cwd?: string | null;
+      /** Format: int32 */
+      exitCode?: number | null;
+      /** Format: int64 */
+      exitedAtMs?: number | null;
+      id: string;
+      interactive: boolean;
+      /** Format: int32 */
+      pid?: number | null;
+      status: components["schemas"]["ProcessState"];
+      tty: boolean;
+    };
+    ProcessInputRequest: {
+      data: string;
+      encoding?: string | null;
+    };
+    ProcessInputResponse: {
+      bytesWritten: number;
+    };
+    ProcessListResponse: {
+      processes: components["schemas"]["ProcessInfo"][];
+    };
+    ProcessLogEntry: {
+      data: string;
+      encoding: string;
+      /** Format: int64 */
+      sequence: number;
+      stream: components["schemas"]["ProcessLogsStream"];
+      /** Format: int64 */
+      timestampMs: number;
+    };
+    ProcessLogsQuery: {
+      follow?: boolean | null;
+      /** Format: int64 */
+      since?: number | null;
+      stream?: components["schemas"]["ProcessLogsStream"] | null;
+      tail?: number | null;
+    };
+    ProcessLogsResponse: {
+      entries: components["schemas"]["ProcessLogEntry"][];
+      processId: string;
+      stream: components["schemas"]["ProcessLogsStream"];
+    };
+    /** @enum {string} */
+    ProcessLogsStream: "stdout" | "stderr" | "combined" | "pty";
+    ProcessRunRequest: {
+      args?: string[];
+      command: string;
+      cwd?: string | null;
+      env?: {
+        [key: string]: string;
+      };
+      maxOutputBytes?: number | null;
+      /** Format: int64 */
+      timeoutMs?: number | null;
+    };
+    ProcessRunResponse: {
+      /** Format: int64 */
+      durationMs: number;
+      /** Format: int32 */
+      exitCode?: number | null;
+      stderr: string;
+      stderrTruncated: boolean;
+      stdout: string;
+      stdoutTruncated: boolean;
+      timedOut: boolean;
+    };
+    ProcessSignalQuery: {
+      /** Format: int64 */
+      waitMs?: number | null;
+    };
+    /** @enum {string} */
+    ProcessState: "running" | "exited";
+    ProcessTerminalResizeRequest: {
+      /** Format: int32 */
+      cols: number;
+      /** Format: int32 */
+      rows: number;
+    };
+    ProcessTerminalResizeResponse: {
+      /** Format: int32 */
+      cols: number;
+      /** Format: int32 */
+      rows: number;
     };
     /** @enum {string} */
     ServerStatus: "running" | "stopped";
@@ -744,6 +887,419 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["HealthResponse"];
+        };
+      };
+    };
+  };
+  get_v1_processes: {
+    responses: {
+      /** @description List processes */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessListResponse"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  post_v1_processes: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProcessCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Started process */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessInfo"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process limit or state conflict */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  get_v1_processes_config: {
+    responses: {
+      /** @description Current runtime process config */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessConfig"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  post_v1_processes_config: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProcessConfig"];
+      };
+    };
+    responses: {
+      /** @description Updated runtime process config */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessConfig"];
+        };
+      };
+      /** @description Invalid config */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  post_v1_processes_run: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProcessRunRequest"];
+      };
+    };
+    responses: {
+      /** @description One-off command result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessRunResponse"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  get_v1_process: {
+    parameters: {
+      path: {
+        /** @description Process ID */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Process details */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessInfo"];
+        };
+      };
+      /** @description Unknown process */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  delete_v1_process: {
+    parameters: {
+      path: {
+        /** @description Process ID */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Process deleted */
+      204: {
+        content: never;
+      };
+      /** @description Unknown process */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process is still running */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  post_v1_process_input: {
+    parameters: {
+      path: {
+        /** @description Process ID */
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProcessInputRequest"];
+      };
+    };
+    responses: {
+      /** @description Input accepted */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessInputResponse"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process not writable */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Input exceeds configured limit */
+      413: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  post_v1_process_kill: {
+    parameters: {
+      query?: {
+        /** @description Wait up to N ms for process to exit */
+        waitMs?: number | null;
+      };
+      path: {
+        /** @description Process ID */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Kill signal sent */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessInfo"];
+        };
+      };
+      /** @description Unknown process */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  get_v1_process_logs: {
+    parameters: {
+      query?: {
+        /** @description stdout|stderr|combined|pty */
+        stream?: components["schemas"]["ProcessLogsStream"] | null;
+        /** @description Tail N entries */
+        tail?: number | null;
+        /** @description Follow via SSE */
+        follow?: boolean | null;
+        /** @description Only entries with sequence greater than this */
+        since?: number | null;
+      };
+      path: {
+        /** @description Process ID */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Process logs */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessLogsResponse"];
+        };
+      };
+      /** @description Unknown process */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  post_v1_process_stop: {
+    parameters: {
+      query?: {
+        /** @description Wait up to N ms for process to exit */
+        waitMs?: number | null;
+      };
+      path: {
+        /** @description Process ID */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Stop signal sent */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessInfo"];
+        };
+      };
+      /** @description Unknown process */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  post_v1_process_terminal_resize: {
+    parameters: {
+      path: {
+        /** @description Process ID */
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProcessTerminalResizeRequest"];
+      };
+    };
+    responses: {
+      /** @description Resize accepted */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProcessTerminalResizeResponse"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Unknown process */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Not a terminal process */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  get_v1_process_terminal_ws: {
+    parameters: {
+      query?: {
+        /** @description Bearer token alternative for WS auth */
+        access_token?: string | null;
+      };
+      path: {
+        /** @description Process ID */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description WebSocket upgraded */
+      101: {
+        content: never;
+      };
+      /** @description Invalid websocket frame or upgrade request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Unknown process */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Not a terminal process */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Process API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
         };
       };
     };
