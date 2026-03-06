@@ -179,6 +179,10 @@ const ProcessesTab = ({
     }
   };
 
+  const handleTerminalExit = useCallback(() => {
+    void loadProcesses("refresh");
+  }, [loadProcesses]);
+
   return (
     <div className="processes-container">
       {/* Create form */}
@@ -389,9 +393,7 @@ const ProcessesTab = ({
               <GhosttyTerminal
                 client={getClient()}
                 processId={selectedProcess.id}
-                onExit={() => {
-                  void loadProcesses("refresh");
-                }}
+                onExit={handleTerminalExit}
               />
             ) : canOpenTerminal(selectedProcess) ? (
               <button

@@ -79,7 +79,7 @@
 					},
 					{
 						"group": "System",
-						"pages": ["file-system"]
+						"pages": ["file-system", "processes"]
 					},
 					{
 						"group": "Orchestration",

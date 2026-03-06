@@ -1494,12 +1494,15 @@ async fn get_v1_process_logs(
         since,
     };
 
-    let entries = runtime.logs(&id, filter).await?;
-    let response_entries: Vec<ProcessLogEntry> =
-        entries.iter().cloned().map(map_process_log_line).collect();
-
     if query.follow.unwrap_or(false) {
+        // Subscribe before reading history to avoid losing entries between the
+        // two operations. Entries are deduplicated by sequence number below.
         let rx = runtime.subscribe_logs(&id).await?;
+        let entries = runtime.logs(&id, filter).await?;
+        let response_entries: Vec<ProcessLogEntry> =
+            entries.iter().cloned().map(map_process_log_line).collect();
+        let last_replay_seq = response_entries.last().map(|e| e.sequence).unwrap_or(0);
+
         let replay_stream = stream::iter(response_entries.into_iter().map(|entry| {
             Ok::<axum::response::sse::Event, Infallible>(
                 axum::response::sse::Event::default()
@@ -1515,6 +1518,9 @@ async fn get_v1_process_logs(
             async move {
                 match item {
                     Ok(line) => {
+                        if line.sequence <= last_replay_seq {
+                            return None;
+                        }
                         let entry = map_process_log_line(line);
                         if process_log_matches(&entry, requested_stream_copy) {
                             Some(Ok(axum::response::sse::Event::default()
@@ -1538,6 +1544,10 @@ async fn get_v1_process_logs(
             Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)));
         return Ok(response.into_response());
     }
+
+    let entries = runtime.logs(&id, filter).await?;
+    let response_entries: Vec<ProcessLogEntry> =
+        entries.iter().cloned().map(map_process_log_line).collect();
 
     Ok(Json(ProcessLogsResponse {
         process_id: id,
