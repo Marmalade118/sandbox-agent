@@ -53,6 +53,14 @@ const DEFAULT_BASE_URL = "http://sandbox-agent";
 const DEFAULT_REPLAY_MAX_EVENTS = 50;
 const DEFAULT_REPLAY_MAX_CHARS = 12_000;
 const EVENT_INDEX_SCAN_EVENTS_LIMIT = 500;
+const HEALTH_WAIT_MIN_DELAY_MS = 500;
+const HEALTH_WAIT_MAX_DELAY_MS = 15_000;
+const HEALTH_WAIT_LOG_AFTER_MS = 5_000;
+const HEALTH_WAIT_LOG_EVERY_MS = 10_000;
+
+export interface SandboxAgentHealthWaitOptions {
+  timeoutMs?: number;
+}
 
 interface SandboxAgentConnectCommonOptions {
   headers?: HeadersInit;
@@ -60,6 +68,7 @@ interface SandboxAgentConnectCommonOptions {
   replayMaxEvents?: number;
   replayMaxChars?: number;
   token?: string;
+  waitForHealth?: boolean | SandboxAgentHealthWaitOptions;
 }
 
 export type SandboxAgentConnectOptions =
@@ -442,12 +451,16 @@ export class SandboxAgent {
   private readonly token?: string;
   private readonly fetcher: typeof fetch;
   private readonly defaultHeaders?: HeadersInit;
+  private readonly healthWait: NormalizedHealthWaitOptions;
 
   private readonly persist: SessionPersistDriver;
   private readonly replayMaxEvents: number;
   private readonly replayMaxChars: number;
 
   private spawnHandle?: SandboxAgentSpawnHandle;
+  private healthPromise?: Promise<void>;
+  private healthError?: Error;
+  private disposed = false;
 
   private readonly liveConnections = new Map<string, LiveAcpConnection>();
   private readonly pendingLiveConnections = new Map<string, Promise<LiveAcpConnection>>();
@@ -469,10 +482,13 @@ export class SandboxAgent {
     }
     this.fetcher = resolvedFetch;
     this.defaultHeaders = options.headers;
+    this.healthWait = normalizeHealthWaitOptions(options.waitForHealth);
     this.persist = options.persist ?? new InMemorySessionPersistDriver();
 
     this.replayMaxEvents = normalizePositiveInt(options.replayMaxEvents, DEFAULT_REPLAY_MAX_EVENTS);
     this.replayMaxChars = normalizePositiveInt(options.replayMaxChars, DEFAULT_REPLAY_MAX_CHARS);
+
+    this.startHealthWait();
   }
 
   static async connect(options: SandboxAgentConnectOptions): Promise<SandboxAgent> {
@@ -504,6 +520,8 @@ export class SandboxAgent {
   }
 
   async dispose(): Promise<void> {
+    this.disposed = true;
+
     const connections = [...this.liveConnections.values()];
     this.liveConnections.clear();
     const pending = [...this.pendingLiveConnections.values()];
@@ -671,7 +689,7 @@ export class SandboxAgent {
   }
 
   async getHealth(): Promise<HealthResponse> {
-    return this.requestJson("GET", `${API_PREFIX}/health`);
+    return this.requestJson("GET", `${API_PREFIX}/health`, { skipReadyWait: true });
   }
 
   async listAgents(options?: { config?: boolean }): Promise<AgentListResponse> {
@@ -772,6 +790,8 @@ export class SandboxAgent {
   }
 
   private async getLiveConnection(agent: string): Promise<LiveAcpConnection> {
+    await this.awaitHealthy();
+
     const existing = this.liveConnections.get(agent);
     if (existing) {
       return existing;
@@ -952,6 +972,7 @@ export class SandboxAgent {
       headers: options.headers,
       accept: options.accept ?? "application/json",
       signal: options.signal,
+      skipReadyWait: options.skipReadyWait,
     });
 
     if (response.status === 204) {
@@ -962,6 +983,10 @@ export class SandboxAgent {
   }
 
   private async requestRaw(method: string, path: string, options: RequestOptions = {}): Promise<Response> {
+    if (!options.skipReadyWait) {
+      await this.awaitHealthy();
+    }
+
     const url = this.buildUrl(path, options.query);
     const headers = this.buildHeaders(options.headers);
 
@@ -996,6 +1021,69 @@ export class SandboxAgent {
     }
 
     return response;
+  }
+
+  private startHealthWait(): void {
+    if (!this.healthWait.enabled || this.healthPromise) {
+      return;
+    }
+
+    this.healthPromise = this.runHealthWait().catch((error) => {
+      this.healthError = error instanceof Error ? error : new Error(String(error));
+    });
+  }
+
+  private async awaitHealthy(): Promise<void> {
+    if (!this.healthPromise) {
+      return;
+    }
+
+    await this.healthPromise;
+    if (this.healthError) {
+      throw this.healthError;
+    }
+  }
+
+  private async runHealthWait(): Promise<void> {
+    const startedAt = Date.now();
+    const deadline =
+      typeof this.healthWait.timeoutMs === "number" ? startedAt + this.healthWait.timeoutMs : undefined;
+
+    let delayMs = HEALTH_WAIT_MIN_DELAY_MS;
+    let nextLogAt = startedAt + HEALTH_WAIT_LOG_AFTER_MS;
+    let lastError: unknown;
+
+    while (!this.disposed && (deadline === undefined || Date.now() < deadline)) {
+      try {
+        const health = await this.getHealth();
+        if (health.status === "ok") {
+          return;
+        }
+        lastError = new Error(`Unexpected health response: ${JSON.stringify(health)}`);
+      } catch (error) {
+        lastError = error;
+      }
+
+      const now = Date.now();
+      if (now >= nextLogAt) {
+        const details = formatHealthWaitError(lastError);
+        console.warn(
+          `sandbox-agent at ${this.baseUrl} is not healthy after ${now - startedAt}ms; still waiting (${details})`,
+        );
+        nextLogAt = now + HEALTH_WAIT_LOG_EVERY_MS;
+      }
+
+      await sleep(delayMs);
+      delayMs = Math.min(HEALTH_WAIT_MAX_DELAY_MS, delayMs * 2);
+    }
+
+    if (this.disposed) {
+      return;
+    }
+
+    throw new Error(
+      `Timed out waiting for sandbox-agent health after ${this.healthWait.timeoutMs}ms (${formatHealthWaitError(lastError)})`,
+    );
   }
 
   private buildHeaders(extra?: HeadersInit): Headers {
@@ -1039,7 +1127,12 @@ type RequestOptions = {
   headers?: HeadersInit;
   accept?: string;
   signal?: AbortSignal;
+  skipReadyWait?: boolean;
 };
+
+type NormalizedHealthWaitOptions =
+  | { enabled: false; timeoutMs?: undefined }
+  | { enabled: true; timeoutMs?: number };
 
 /**
  * Auto-select and call `authenticate` based on the agent's advertised auth methods.
@@ -1201,6 +1294,28 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
   return Math.floor(value as number);
 }
 
+function normalizeHealthWaitOptions(
+  value: boolean | SandboxAgentHealthWaitOptions | undefined,
+): NormalizedHealthWaitOptions {
+  if (!value) {
+    return { enabled: false };
+  }
+
+  if (value === true) {
+    return { enabled: true };
+  }
+
+  const timeoutMs =
+    typeof value.timeoutMs === "number" && Number.isFinite(value.timeoutMs) && value.timeoutMs > 0
+      ? Math.floor(value.timeoutMs)
+      : undefined;
+
+  return {
+    enabled: true,
+    timeoutMs,
+  };
+}
+
 function normalizeSpawnOptions(
   spawn: SandboxAgentSpawnOptions | boolean | undefined,
   defaultEnabled: boolean,
@@ -1229,4 +1344,20 @@ async function readProblem(response: Response): Promise<ProblemDetails | undefin
   } catch {
     return undefined;
   }
+}
+
+function formatHealthWaitError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (error === undefined || error === null) {
+    return "unknown error";
+  }
+
+  return String(error);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

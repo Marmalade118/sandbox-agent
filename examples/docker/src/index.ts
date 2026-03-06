@@ -1,6 +1,6 @@
 import Docker from "dockerode";
 import { SandboxAgent } from "sandbox-agent";
-import { detectAgent, buildInspectorUrl, waitForHealth } from "@sandbox-agent/example-shared";
+import { detectAgent, buildInspectorUrl } from "@sandbox-agent/example-shared";
 
 const IMAGE = "alpine:latest";
 const PORT = 3000;
@@ -43,9 +43,8 @@ const container = await docker.createContainer({
 await container.start();
 
 const baseUrl = `http://127.0.0.1:${PORT}`;
-await waitForHealth({ baseUrl });
 
-const client = await SandboxAgent.connect({ baseUrl });
+const client = await SandboxAgent.connect({ baseUrl, waitForHealth: { timeoutMs: 120_000 } });
 const session = await client.createSession({ agent: detectAgent(), sessionInit: { cwd: "/root", mcpServers: [] } });
 const sessionId = session.id;
 

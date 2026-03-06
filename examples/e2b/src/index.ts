@@ -1,6 +1,6 @@
 import { Sandbox } from "@e2b/code-interpreter";
 import { SandboxAgent } from "sandbox-agent";
-import { detectAgent, buildInspectorUrl, waitForHealth } from "@sandbox-agent/example-shared";
+import { detectAgent, buildInspectorUrl } from "@sandbox-agent/example-shared";
 
 const envs: Record<string, string> = {};
 if (process.env.ANTHROPIC_API_KEY) envs.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -27,10 +27,8 @@ await sandbox.commands.run("sandbox-agent server --no-token --host 0.0.0.0 --por
 
 const baseUrl = `https://${sandbox.getHost(3000)}`;
 
-console.log("Waiting for server...");
-await waitForHealth({ baseUrl });
-
-const client = await SandboxAgent.connect({ baseUrl });
+console.log("Connecting to server...");
+const client = await SandboxAgent.connect({ baseUrl, waitForHealth: { timeoutMs: 120_000 } });
 const session = await client.createSession({ agent: detectAgent(), sessionInit: { cwd: "/home/user", mcpServers: [] } });
 const sessionId = session.id;
 

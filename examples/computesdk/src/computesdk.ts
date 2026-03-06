@@ -10,7 +10,7 @@ import {
   type ProviderName,
 } from "computesdk";
 import { SandboxAgent } from "sandbox-agent";
-import { detectAgent, buildInspectorUrl, waitForHealth } from "@sandbox-agent/example-shared";
+import { detectAgent, buildInspectorUrl } from "@sandbox-agent/example-shared";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
@@ -116,9 +116,6 @@ export async function setupComputeSdkSandboxAgent(): Promise<{
 
   const baseUrl = await sandbox.getUrl({ port: PORT });
 
-  console.log("Waiting for server...");
-  await waitForHealth({ baseUrl });
-
   const cleanup = async () => {
     try {
       await sandbox.destroy();
@@ -141,7 +138,7 @@ export async function runComputeSdkExample(): Promise<void> {
   process.once("SIGINT", handleExit);
   process.once("SIGTERM", handleExit);
 
-  const client = await SandboxAgent.connect({ baseUrl });
+  const client = await SandboxAgent.connect({ baseUrl, waitForHealth: { timeoutMs: 120_000 } });
   const session = await client.createSession({ agent: detectAgent(), sessionInit: { cwd: "/home", mcpServers: [] } });
   const sessionId = session.id;
 
