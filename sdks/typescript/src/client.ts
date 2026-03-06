@@ -693,7 +693,7 @@ export class SandboxAgent {
   }
 
   async getHealth(): Promise<HealthResponse> {
-    return this.requestJson("GET", `${API_PREFIX}/health`, { skipReadyWait: true });
+    return this.requestHealth();
   }
 
   async listAgents(options?: { config?: boolean }): Promise<AgentListResponse> {
@@ -1066,10 +1066,7 @@ export class SandboxAgent {
       throwIfAborted(signal);
 
       try {
-        const health = await this.requestJson<HealthResponse>("GET", `${API_PREFIX}/health`, {
-          signal,
-          skipReadyWait: true,
-        });
+        const health = await this.requestHealth({ signal });
         if (health.status === "ok") {
           return;
         }
@@ -1131,6 +1128,13 @@ export class SandboxAgent {
     }
 
     return url.toString();
+  }
+
+  private async requestHealth(options: { signal?: AbortSignal } = {}): Promise<HealthResponse> {
+    return this.requestJson("GET", `${API_PREFIX}/health`, {
+      signal: options.signal,
+      skipReadyWait: true,
+    });
   }
 }
 
