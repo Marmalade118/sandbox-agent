@@ -65,8 +65,8 @@ impl LiveServer {
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
         let task = tokio::spawn(async move {
-            let server = axum::serve(listener, app.into_make_service())
-                .with_graceful_shutdown(async {
+            let server =
+                axum::serve(listener, app.into_make_service()).with_graceful_shutdown(async {
                     let _ = shutdown_rx.await;
                 });
 

@@ -519,19 +519,14 @@ async fn v1_process_terminal_ws_e2e_is_deterministic() {
         .expect("create process response");
     assert_eq!(create_response.status(), reqwest::StatusCode::OK);
     let create_body: Value = create_response.json().await.expect("create process json");
-    let process_id = create_body["id"]
-        .as_str()
-        .expect("process id")
-        .to_string();
+    let process_id = create_body["id"].as_str().expect("process id").to_string();
 
     let ws_url = live_server.ws_url(&format!("/v1/processes/{process_id}/terminal/ws"));
-    let (mut ws, _) = connect_async(&ws_url)
-        .await
-        .expect("connect websocket");
+    let (mut ws, _) = connect_async(&ws_url).await.expect("connect websocket");
 
     let ready = recv_ws_message(&mut ws).await;
-    let ready_payload: Value = serde_json::from_str(ready.to_text().expect("ready text frame"))
-        .expect("ready json");
+    let ready_payload: Value =
+        serde_json::from_str(ready.to_text().expect("ready text frame")).expect("ready json");
     assert_eq!(ready_payload["type"], "ready");
     assert_eq!(ready_payload["processId"], process_id);
 
@@ -570,7 +565,10 @@ async fn v1_process_terminal_ws_e2e_is_deterministic() {
         }
     }
 
-    assert!(saw_binary_output, "expected pty binary output over websocket");
+    assert!(
+        saw_binary_output,
+        "expected pty binary output over websocket"
+    );
     assert!(saw_exit, "expected exit control frame over websocket");
 
     let _ = ws.close(None).await;
@@ -605,10 +603,7 @@ async fn v1_process_terminal_ws_auth_e2e() {
         .expect("create process response");
     assert_eq!(create_response.status(), reqwest::StatusCode::OK);
     let create_body: Value = create_response.json().await.expect("create process json");
-    let process_id = create_body["id"]
-        .as_str()
-        .expect("process id")
-        .to_string();
+    let process_id = create_body["id"].as_str().expect("process id").to_string();
 
     let unauth_ws_url = live_server.ws_url(&format!("/v1/processes/{process_id}/terminal/ws"));
     let unauth_err = connect_async(&unauth_ws_url)
@@ -629,8 +624,8 @@ async fn v1_process_terminal_ws_auth_e2e() {
         .expect("authenticated websocket handshake");
 
     let ready = recv_ws_message(&mut ws).await;
-    let ready_payload: Value = serde_json::from_str(ready.to_text().expect("ready text frame"))
-        .expect("ready json");
+    let ready_payload: Value =
+        serde_json::from_str(ready.to_text().expect("ready text frame")).expect("ready json");
     assert_eq!(ready_payload["type"], "ready");
     assert_eq!(ready_payload["processId"], process_id);
 
@@ -640,9 +635,7 @@ async fn v1_process_terminal_ws_auth_e2e() {
     let _ = ws.close(None).await;
 
     let kill_response = http
-        .post(live_server.http_url(&format!(
-            "/v1/processes/{process_id}/kill?waitMs=1000"
-        )))
+        .post(live_server.http_url(&format!("/v1/processes/{process_id}/kill?waitMs=1000")))
         .bearer_auth(token)
         .send()
         .await
