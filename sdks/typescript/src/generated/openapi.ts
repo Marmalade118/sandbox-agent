@@ -58,36 +58,105 @@ export interface paths {
     get: operations["get_v1_health"];
   };
   "/v1/processes": {
+    /**
+     * List all managed processes.
+     * @description Returns a list of all processes (running and exited) currently tracked
+     * by the runtime, sorted by process ID.
+     */
     get: operations["get_v1_processes"];
+    /**
+     * Create a long-lived managed process.
+     * @description Spawns a new process with the given command and arguments. Supports both
+     * pipe-based and PTY (tty) modes. Returns the process descriptor on success.
+     */
     post: operations["post_v1_processes"];
   };
   "/v1/processes/config": {
+    /**
+     * Get process runtime configuration.
+     * @description Returns the current runtime configuration for the process management API,
+     * including limits for concurrency, timeouts, and buffer sizes.
+     */
     get: operations["get_v1_processes_config"];
+    /**
+     * Update process runtime configuration.
+     * @description Replaces the runtime configuration for the process management API.
+     * Validates that all values are non-zero and clamps default timeout to max.
+     */
     post: operations["post_v1_processes_config"];
   };
   "/v1/processes/run": {
+    /**
+     * Run a one-shot command.
+     * @description Executes a command to completion and returns its stdout, stderr, exit code,
+     * and duration. Supports configurable timeout and output size limits.
+     */
     post: operations["post_v1_processes_run"];
   };
   "/v1/processes/{id}": {
+    /**
+     * Get a single process by ID.
+     * @description Returns the current state of a managed process including its status,
+     * PID, exit code, and creation/exit timestamps.
+     */
     get: operations["get_v1_process"];
+    /**
+     * Delete a process record.
+     * @description Removes a stopped process from the runtime. Returns 409 if the process
+     * is still running; stop or kill it first.
+     */
     delete: operations["delete_v1_process"];
   };
   "/v1/processes/{id}/input": {
+    /**
+     * Write input to a process.
+     * @description Sends data to a process's stdin (pipe mode) or PTY writer (tty mode).
+     * Data can be encoded as base64, utf8, or text. Returns 413 if the decoded
+     * payload exceeds the configured `maxInputBytesPerRequest` limit.
+     */
     post: operations["post_v1_process_input"];
   };
   "/v1/processes/{id}/kill": {
+    /**
+     * Send SIGKILL to a process.
+     * @description Sends SIGKILL to the process and optionally waits up to `waitMs`
+     * milliseconds for the process to exit before returning.
+     */
     post: operations["post_v1_process_kill"];
   };
   "/v1/processes/{id}/logs": {
+    /**
+     * Fetch process logs.
+     * @description Returns buffered log entries for a process. Supports filtering by stream
+     * type, tail count, and sequence-based resumption. When `follow=true`,
+     * returns an SSE stream that replays buffered entries then streams live output.
+     */
     get: operations["get_v1_process_logs"];
   };
   "/v1/processes/{id}/stop": {
+    /**
+     * Send SIGTERM to a process.
+     * @description Sends SIGTERM to the process and optionally waits up to `waitMs`
+     * milliseconds for the process to exit before returning.
+     */
     post: operations["post_v1_process_stop"];
   };
   "/v1/processes/{id}/terminal/resize": {
+    /**
+     * Resize a process terminal.
+     * @description Sets the PTY window size (columns and rows) for a tty-mode process and
+     * sends SIGWINCH so the child process can adapt.
+     */
     post: operations["post_v1_process_terminal_resize"];
   };
   "/v1/processes/{id}/terminal/ws": {
+    /**
+     * Open an interactive WebSocket terminal session.
+     * @description Upgrades the connection to a WebSocket for bidirectional PTY I/O. Accepts
+     * `access_token` query param for browser-based auth (WebSocket API cannot
+     * send custom headers). Streams raw PTY output as binary frames and accepts
+     * JSON control frames for input, resize, and close.
+     */
     get: operations["get_v1_process_terminal_ws"];
   };
 }
@@ -166,7 +235,7 @@ export interface components {
       agents: components["schemas"]["AgentInfo"][];
     };
     /** @enum {string} */
-    ErrorType: "invalid_request" | "conflict" | "unsupported_agent" | "agent_not_installed" | "install_failed" | "agent_process_exited" | "token_invalid" | "permission_denied" | "not_acceptable" | "unsupported_media_type" | "session_not_found" | "session_already_exists" | "mode_not_supported" | "stream_error" | "timeout";
+    ErrorType: "invalid_request" | "conflict" | "unsupported_agent" | "agent_not_installed" | "install_failed" | "agent_process_exited" | "token_invalid" | "permission_denied" | "not_acceptable" | "unsupported_media_type" | "not_found" | "session_not_found" | "session_already_exists" | "mode_not_supported" | "stream_error" | "timeout";
     FsActionResponse: {
       path: string;
     };
@@ -891,6 +960,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * List all managed processes.
+   * @description Returns a list of all processes (running and exited) currently tracked
+   * by the runtime, sorted by process ID.
+   */
   get_v1_processes: {
     responses: {
       /** @description List processes */
@@ -907,6 +981,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * Create a long-lived managed process.
+   * @description Spawns a new process with the given command and arguments. Supports both
+   * pipe-based and PTY (tty) modes. Returns the process descriptor on success.
+   */
   post_v1_processes: {
     requestBody: {
       content: {
@@ -940,6 +1019,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * Get process runtime configuration.
+   * @description Returns the current runtime configuration for the process management API,
+   * including limits for concurrency, timeouts, and buffer sizes.
+   */
   get_v1_processes_config: {
     responses: {
       /** @description Current runtime process config */
@@ -956,6 +1040,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * Update process runtime configuration.
+   * @description Replaces the runtime configuration for the process management API.
+   * Validates that all values are non-zero and clamps default timeout to max.
+   */
   post_v1_processes_config: {
     requestBody: {
       content: {
@@ -983,6 +1072,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * Run a one-shot command.
+   * @description Executes a command to completion and returns its stdout, stderr, exit code,
+   * and duration. Supports configurable timeout and output size limits.
+   */
   post_v1_processes_run: {
     requestBody: {
       content: {
@@ -1010,6 +1104,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * Get a single process by ID.
+   * @description Returns the current state of a managed process including its status,
+   * PID, exit code, and creation/exit timestamps.
+   */
   get_v1_process: {
     parameters: {
       path: {
@@ -1038,6 +1137,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * Delete a process record.
+   * @description Removes a stopped process from the runtime. Returns 409 if the process
+   * is still running; stop or kill it first.
+   */
   delete_v1_process: {
     parameters: {
       path: {
@@ -1070,6 +1174,12 @@ export interface operations {
       };
     };
   };
+  /**
+   * Write input to a process.
+   * @description Sends data to a process's stdin (pipe mode) or PTY writer (tty mode).
+   * Data can be encoded as base64, utf8, or text. Returns 413 if the decoded
+   * payload exceeds the configured `maxInputBytesPerRequest` limit.
+   */
   post_v1_process_input: {
     parameters: {
       path: {
@@ -1115,6 +1225,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * Send SIGKILL to a process.
+   * @description Sends SIGKILL to the process and optionally waits up to `waitMs`
+   * milliseconds for the process to exit before returning.
+   */
   post_v1_process_kill: {
     parameters: {
       query?: {
@@ -1147,6 +1262,12 @@ export interface operations {
       };
     };
   };
+  /**
+   * Fetch process logs.
+   * @description Returns buffered log entries for a process. Supports filtering by stream
+   * type, tail count, and sequence-based resumption. When `follow=true`,
+   * returns an SSE stream that replays buffered entries then streams live output.
+   */
   get_v1_process_logs: {
     parameters: {
       query?: {
@@ -1185,6 +1306,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * Send SIGTERM to a process.
+   * @description Sends SIGTERM to the process and optionally waits up to `waitMs`
+   * milliseconds for the process to exit before returning.
+   */
   post_v1_process_stop: {
     parameters: {
       query?: {
@@ -1217,6 +1343,11 @@ export interface operations {
       };
     };
   };
+  /**
+   * Resize a process terminal.
+   * @description Sets the PTY window size (columns and rows) for a tty-mode process and
+   * sends SIGWINCH so the child process can adapt.
+   */
   post_v1_process_terminal_resize: {
     parameters: {
       path: {
@@ -1262,6 +1393,13 @@ export interface operations {
       };
     };
   };
+  /**
+   * Open an interactive WebSocket terminal session.
+   * @description Upgrades the connection to a WebSocket for bidirectional PTY I/O. Accepts
+   * `access_token` query param for browser-based auth (WebSocket API cannot
+   * send custom headers). Streams raw PTY output as binary frames and accepts
+   * JSON control frames for input, resize, and close.
+   */
   get_v1_process_terminal_ws: {
     parameters: {
       query?: {

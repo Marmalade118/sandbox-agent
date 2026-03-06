@@ -897,7 +897,7 @@ export class SandboxAgent {
 
   async getSessionConfigOptions(sessionId: string): Promise<SessionConfigOption[]> {
     const record = await this.requireSessionRecord(sessionId);
-    const hydrated = await this.hydrateSessionConfigOptions(record);
+    const hydrated = await this.hydrateSessionConfigOptions(record.id, record);
     return cloneConfigOptions(hydrated.configOptions) ?? [];
   }
 
@@ -937,13 +937,19 @@ export class SandboxAgent {
     return this.setSessionConfigOption(sessionId, option.id, resolvedValue);
   }
 
-  private async hydrateSessionConfigOptions(record: SessionRecord): Promise<SessionRecord> {
-    if (record.configOptions !== undefined) {
-      return record;
+  private async hydrateSessionConfigOptions(sessionId: string, snapshot: SessionRecord): Promise<SessionRecord> {
+    if (snapshot.configOptions !== undefined) {
+      return snapshot;
     }
 
-    const info = await this.getAgent(record.agent, { config: true });
+    const info = await this.getAgent(snapshot.agent, { config: true });
     const configOptions = normalizeSessionConfigOptions(info.configOptions) ?? [];
+    // Re-read the record from persistence so we merge against the latest
+    // state, not a stale snapshot captured before the network await.
+    const record = await this.persist.getSession(sessionId);
+    if (!record) {
+      return { ...snapshot, configOptions };
+    }
     const updated: SessionRecord = {
       ...record,
       configOptions,
@@ -1048,14 +1054,25 @@ export class SandboxAgent {
       if (!modeId) {
         return;
       }
+      const updates: Partial<SessionRecord> = {};
       const nextModes = applyCurrentMode(record.modes, modeId);
-      if (!nextModes) {
-        return;
+      if (nextModes) {
+        updates.modes = nextModes;
       }
-      await this.persist.updateSession({
-        ...record,
-        modes: nextModes,
-      });
+      // Keep configOptions mode-category currentValue in sync with the new
+      // mode, mirroring the reverse sync in the set_config_option path above.
+      if (record.configOptions) {
+        const modeOption = findConfigOptionByCategory(record.configOptions, "mode");
+        if (modeOption) {
+          const updated = applyConfigOptionValue(record.configOptions, modeOption.id, modeId);
+          if (updated) {
+            updates.configOptions = updated;
+          }
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        await this.persist.updateSession({ ...record, ...updates });
+      }
     }
   }
 

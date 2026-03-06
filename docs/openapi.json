@@ -954,6 +954,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "List all managed processes.",
+        "description": "Returns a list of all processes (running and exited) currently tracked\nby the runtime, sorted by process ID.",
         "operationId": "get_v1_processes",
         "responses": {
           "200": {
@@ -982,6 +984,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Create a long-lived managed process.",
+        "description": "Spawns a new process with the given command and arguments. Supports both\npipe-based and PTY (tty) modes. Returns the process descriptor on success.",
         "operationId": "post_v1_processes",
         "requestBody": {
           "content": {
@@ -1042,6 +1046,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Get process runtime configuration.",
+        "description": "Returns the current runtime configuration for the process management API,\nincluding limits for concurrency, timeouts, and buffer sizes.",
         "operationId": "get_v1_processes_config",
         "responses": {
           "200": {
@@ -1070,6 +1076,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Update process runtime configuration.",
+        "description": "Replaces the runtime configuration for the process management API.\nValidates that all values are non-zero and clamps default timeout to max.",
         "operationId": "post_v1_processes_config",
         "requestBody": {
           "content": {
@@ -1120,6 +1128,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Run a one-shot command.",
+        "description": "Executes a command to completion and returns its stdout, stderr, exit code,\nand duration. Supports configurable timeout and output size limits.",
         "operationId": "post_v1_processes_run",
         "requestBody": {
           "content": {
@@ -1170,6 +1180,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Get a single process by ID.",
+        "description": "Returns the current state of a managed process including its status,\nPID, exit code, and creation/exit timestamps.",
         "operationId": "get_v1_process",
         "parameters": [
           {
@@ -1219,6 +1231,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Delete a process record.",
+        "description": "Removes a stopped process from the runtime. Returns 409 if the process\nis still running; stop or kill it first.",
         "operationId": "delete_v1_process",
         "parameters": [
           {
@@ -1273,6 +1287,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Write input to a process.",
+        "description": "Sends data to a process's stdin (pipe mode) or PTY writer (tty mode).\nData can be encoded as base64, utf8, or text. Returns 413 if the decoded\npayload exceeds the configured `maxInputBytesPerRequest` limit.",
         "operationId": "post_v1_process_input",
         "parameters": [
           {
@@ -1354,6 +1370,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Send SIGKILL to a process.",
+        "description": "Sends SIGKILL to the process and optionally waits up to `waitMs`\nmilliseconds for the process to exit before returning.",
         "operationId": "post_v1_process_kill",
         "parameters": [
           {
@@ -1417,6 +1435,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Fetch process logs.",
+        "description": "Returns buffered log entries for a process. Supports filtering by stream\ntype, tail count, and sequence-based resumption. When `follow=true`,\nreturns an SSE stream that replays buffered entries then streams live output.",
         "operationId": "get_v1_process_logs",
         "parameters": [
           {
@@ -1515,6 +1535,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Send SIGTERM to a process.",
+        "description": "Sends SIGTERM to the process and optionally waits up to `waitMs`\nmilliseconds for the process to exit before returning.",
         "operationId": "post_v1_process_stop",
         "parameters": [
           {
@@ -1578,6 +1600,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Resize a process terminal.",
+        "description": "Sets the PTY window size (columns and rows) for a tty-mode process and\nsends SIGWINCH so the child process can adapt.",
         "operationId": "post_v1_process_terminal_resize",
         "parameters": [
           {
@@ -1659,6 +1683,8 @@
         "tags": [
           "v1"
         ],
+        "summary": "Open an interactive WebSocket terminal session.",
+        "description": "Upgrades the connection to a WebSocket for bidirectional PTY I/O. Accepts\n`access_token` query param for browser-based auth (WebSocket API cannot\nsend custom headers). Streams raw PTY output as binary frames and accepts\nJSON control frames for input, resize, and close.",
         "operationId": "get_v1_process_terminal_ws",
         "parameters": [
           {
@@ -2013,6 +2039,7 @@
           "permission_denied",
           "not_acceptable",
           "unsupported_media_type",
+          "not_found",
           "session_not_found",
           "session_already_exists",
           "mode_not_supported",
