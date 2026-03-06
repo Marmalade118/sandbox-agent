@@ -512,20 +512,6 @@ pub struct ProcessSignalQuery {
     pub wait_ms: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ProcessTerminalResizeRequest {
-    pub cols: u16,
-    pub rows: u16,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ProcessTerminalResizeResponse {
-    pub cols: u16,
-    pub rows: u16,
-}
-
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessWsQuery {

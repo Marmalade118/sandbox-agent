@@ -136,22 +136,6 @@ function writeTarChecksum(buffer: Buffer, checksum: number): void {
   buffer[155] = 0x20;
 }
 
-function decodeSocketPayload(data: unknown): string {
-  if (typeof data === "string") {
-    return data;
-  }
-  if (data instanceof ArrayBuffer) {
-    return Buffer.from(data).toString("utf8");
-  }
-  if (ArrayBuffer.isView(data)) {
-    return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString("utf8");
-  }
-  if (typeof Blob !== "undefined" && data instanceof Blob) {
-    throw new Error("Blob socket payloads are not supported in this test");
-  }
-  throw new Error(`Unsupported socket payload type: ${typeof data}`);
-}
-
 function decodeProcessLogData(data: string, encoding: string): string {
   if (encoding === "base64") {
     return Buffer.from(data, "base64").toString("utf8");
@@ -582,47 +566,53 @@ describe("Integration: TypeScript SDK flat session API", () => {
       });
       ttyProcessId = ttyProcess.id;
 
-      const resized = await sdk.resizeProcessTerminal(ttyProcess.id, {
-        cols: 120,
-        rows: 40,
-      });
-      expect(resized.cols).toBe(120);
-      expect(resized.rows).toBe(40);
-
       const wsUrl = sdk.buildProcessTerminalWebSocketUrl(ttyProcess.id);
       expect(wsUrl.startsWith("ws://") || wsUrl.startsWith("wss://")).toBe(true);
 
-      const ws = sdk.connectProcessTerminalWebSocket(ttyProcess.id, {
+      const session = sdk.connectProcessTerminal(ttyProcess.id, {
         WebSocket: WebSocket as unknown as typeof globalThis.WebSocket,
       });
-      ws.binaryType = "arraybuffer";
+      const readyFrames: string[] = [];
+      const ttyOutput: string[] = [];
+      const exitFrames: Array<number | null | undefined> = [];
+      const terminalErrors: string[] = [];
+      let closeCount = 0;
 
-      const socketTextFrames: string[] = [];
-      const socketBinaryFrames: string[] = [];
-      ws.addEventListener("message", (event) => {
-        if (typeof event.data === "string") {
-          socketTextFrames.push(event.data);
-          return;
-        }
-        socketBinaryFrames.push(decodeSocketPayload(event.data));
+      session.onReady((status) => {
+        readyFrames.push(status.processId);
+      });
+      session.onData((bytes) => {
+        ttyOutput.push(Buffer.from(bytes).toString("utf8"));
+      });
+      session.onExit((status) => {
+        exitFrames.push(status.exitCode);
+      });
+      session.onError((error) => {
+        terminalErrors.push(error instanceof Error ? error.message : error.message);
+      });
+      session.onClose(() => {
+        closeCount += 1;
       });
 
-      await waitFor(() => {
-        const ready = socketTextFrames.find((frame) => frame.includes('"type":"ready"'));
-        return ready;
+      await waitFor(() => readyFrames[0]);
+
+      session.resize({
+        cols: 120,
+        rows: 40,
       });
-
-      ws.send(JSON.stringify({
-        type: "input",
-        data: "hello tty\n",
-      }));
+      session.sendInput("hello tty\n");
 
       await waitFor(() => {
-        const joined = socketBinaryFrames.join("");
+        const joined = ttyOutput.join("");
         return joined.includes("hello tty") ? joined : undefined;
       });
 
-      ws.close();
+      session.close();
+      await session.closed;
+      expect(closeCount).toBeGreaterThan(0);
+      expect(exitFrames).toHaveLength(0);
+      expect(terminalErrors).toEqual([]);
+
       await waitForAsync(async () => {
         const processInfo = await sdk.getProcess(ttyProcess.id);
         return processInfo.status === "running" ? processInfo : undefined;

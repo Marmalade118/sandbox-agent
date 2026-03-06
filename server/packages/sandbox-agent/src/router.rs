@@ -50,6 +50,12 @@ pub use self::types::*;
 
 const APPLICATION_JSON: &str = "application/json";
 const TEXT_EVENT_STREAM: &str = "text/event-stream";
+const CHANNEL_K8S_IO_PROTOCOL: &str = "channel.k8s.io";
+const CH_STDIN: u8 = 0;
+const CH_STDOUT: u8 = 1;
+const CH_STATUS: u8 = 3;
+const CH_RESIZE: u8 = 4;
+const CH_CLOSE: u8 = 255;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BrandingMode {
@@ -197,10 +203,6 @@ pub fn build_router_with_state(shared: Arc<AppState>) -> (Router, Arc<AppState>)
         .route("/processes/:id/logs", get(get_v1_process_logs))
         .route("/processes/:id/input", post(post_v1_process_input))
         .route(
-            "/processes/:id/terminal/resize",
-            post(post_v1_process_terminal_resize),
-        )
-        .route(
             "/processes/:id/terminal/ws",
             get(get_v1_process_terminal_ws),
         )
@@ -344,7 +346,6 @@ pub async fn shutdown_servers(state: &Arc<AppState>) {
         delete_v1_process,
         get_v1_process_logs,
         post_v1_process_input,
-        post_v1_process_terminal_resize,
         get_v1_process_terminal_ws,
         get_v1_config_mcp,
         put_v1_config_mcp,
@@ -394,8 +395,6 @@ pub async fn shutdown_servers(state: &Arc<AppState>) {
             ProcessInputRequest,
             ProcessInputResponse,
             ProcessSignalQuery,
-            ProcessTerminalResizeRequest,
-            ProcessTerminalResizeResponse,
             AcpPostQuery,
             AcpServerInfo,
             AcpServerListResponse,
@@ -1602,51 +1601,13 @@ async fn post_v1_process_input(
     Ok(Json(ProcessInputResponse { bytes_written }))
 }
 
-/// Resize a process terminal.
-///
-/// Sets the PTY window size (columns and rows) for a tty-mode process and
-/// sends SIGWINCH so the child process can adapt.
-#[utoipa::path(
-    post,
-    path = "/v1/processes/{id}/terminal/resize",
-    tag = "v1",
-    params(
-        ("id" = String, Path, description = "Process ID")
-    ),
-    request_body = ProcessTerminalResizeRequest,
-    responses(
-        (status = 200, description = "Resize accepted", body = ProcessTerminalResizeResponse),
-        (status = 400, description = "Invalid request", body = ProblemDetails),
-        (status = 404, description = "Unknown process", body = ProblemDetails),
-        (status = 409, description = "Not a terminal process", body = ProblemDetails),
-        (status = 501, description = "Process API unsupported on this platform", body = ProblemDetails)
-    )
-)]
-async fn post_v1_process_terminal_resize(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-    Json(body): Json<ProcessTerminalResizeRequest>,
-) -> Result<Json<ProcessTerminalResizeResponse>, ApiError> {
-    if !process_api_supported() {
-        return Err(process_api_not_supported().into());
-    }
-
-    state
-        .process_runtime()
-        .resize_terminal(&id, body.cols, body.rows)
-        .await?;
-    Ok(Json(ProcessTerminalResizeResponse {
-        cols: body.cols,
-        rows: body.rows,
-    }))
-}
-
 /// Open an interactive WebSocket terminal session.
 ///
 /// Upgrades the connection to a WebSocket for bidirectional PTY I/O. Accepts
 /// `access_token` query param for browser-based auth (WebSocket API cannot
-/// send custom headers). Streams raw PTY output as binary frames and accepts
-/// JSON control frames for input, resize, and close.
+/// send custom headers). Uses the `channel.k8s.io` binary subprotocol:
+/// channel 0 stdin, channel 1 stdout, channel 3 status JSON, channel 4 resize,
+/// and channel 255 close.
 #[utoipa::path(
     get,
     path = "/v1/processes/{id}/terminal/ws",
@@ -1682,23 +1643,16 @@ async fn get_v1_process_terminal_ws(
     }
 
     Ok(ws
+        .protocols([CHANNEL_K8S_IO_PROTOCOL])
         .on_upgrade(move |socket| process_terminal_ws_session(socket, runtime, id))
         .into_response())
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-enum TerminalClientFrame {
-    Input {
-        data: String,
-        #[serde(default)]
-        encoding: Option<String>,
-    },
-    Resize {
-        cols: u16,
-        rows: u16,
-    },
-    Close,
+#[serde(rename_all = "camelCase")]
+struct TerminalResizePayload {
+    cols: u16,
+    rows: u16,
 }
 
 async fn process_terminal_ws_session(
@@ -1706,7 +1660,7 @@ async fn process_terminal_ws_session(
     runtime: Arc<ProcessRuntime>,
     id: String,
 ) {
-    let _ = send_ws_json(
+    let _ = send_status_json(
         &mut socket,
         json!({
             "type": "ready",
@@ -1718,7 +1672,8 @@ async fn process_terminal_ws_session(
     let mut log_rx = match runtime.subscribe_logs(&id).await {
         Ok(rx) => rx,
         Err(err) => {
-            let _ = send_ws_error(&mut socket, &err.to_string()).await;
+            let _ = send_status_error(&mut socket, &err.to_string()).await;
+            let _ = send_close_signal(&mut socket).await;
             let _ = socket.close().await;
             return;
         }
@@ -1729,42 +1684,56 @@ async fn process_terminal_ws_session(
         tokio::select! {
             ws_in = socket.recv() => {
                 match ws_in {
-                    Some(Ok(Message::Binary(_))) => {
-                        let _ = send_ws_error(&mut socket, "binary input is not supported; use text JSON frames").await;
-                    }
-                    Some(Ok(Message::Text(text))) => {
-                        let parsed = serde_json::from_str::<TerminalClientFrame>(&text);
-                        match parsed {
-                            Ok(TerminalClientFrame::Input { data, encoding }) => {
-                                let input = match decode_input_bytes(&data, encoding.as_deref().unwrap_or("utf8")) {
-                                    Ok(input) => input,
-                                    Err(err) => {
-                                        let _ = send_ws_error(&mut socket, &err.to_string()).await;
-                                        continue;
-                                    }
-                                };
+                    Some(Ok(Message::Binary(bytes))) => {
+                        let Some((&channel, payload)) = bytes.split_first() else {
+                            let _ = send_status_error(&mut socket, "invalid terminal frame: missing channel byte").await;
+                            continue;
+                        };
+
+                        match channel {
+                            CH_STDIN => {
+                                let input = payload.to_vec();
                                 let max_input = runtime.max_input_bytes().await;
                                 if input.len() > max_input {
-                                    let _ = send_ws_error(&mut socket, &format!("input payload exceeds maxInputBytesPerRequest ({max_input})")).await;
+                                    let _ = send_status_error(&mut socket, &format!("input payload exceeds maxInputBytesPerRequest ({max_input})")).await;
                                     continue;
                                 }
                                 if let Err(err) = runtime.write_input(&id, &input).await {
-                                    let _ = send_ws_error(&mut socket, &err.to_string()).await;
+                                    let _ = send_status_error(&mut socket, &err.to_string()).await;
                                 }
                             }
-                            Ok(TerminalClientFrame::Resize { cols, rows }) => {
-                                if let Err(err) = runtime.resize_terminal(&id, cols, rows).await {
-                                    let _ = send_ws_error(&mut socket, &err.to_string()).await;
+                            CH_RESIZE => {
+                                let resize = match serde_json::from_slice::<TerminalResizePayload>(payload) {
+                                    Ok(resize) => resize,
+                                    Err(err) => {
+                                        let _ = send_status_error(&mut socket, &format!("invalid resize payload: {err}")).await;
+                                        continue;
+                                    }
+                                };
+
+                                if let Err(err) = runtime
+                                    .resize_terminal(&id, resize.cols, resize.rows)
+                                    .await
+                                {
+                                    let _ = send_status_error(&mut socket, &err.to_string()).await;
                                 }
                             }
-                            Ok(TerminalClientFrame::Close) => {
+                            CH_CLOSE => {
+                                let _ = send_close_signal(&mut socket).await;
                                 let _ = socket.close().await;
                                 break;
                             }
-                            Err(err) => {
-                                let _ = send_ws_error(&mut socket, &format!("invalid terminal frame: {err}")).await;
+                            _ => {
+                                let _ = send_status_error(&mut socket, &format!("unsupported terminal channel: {channel}")).await;
                             }
                         }
+                    }
+                    Some(Ok(Message::Text(_))) => {
+                        let _ = send_status_error(
+                            &mut socket,
+                            "text frames are not supported; use channel.k8s.io binary frames",
+                        )
+                        .await;
                     }
                     Some(Ok(Message::Ping(payload))) => {
                         let _ = socket.send(Message::Pong(payload)).await;
@@ -1785,7 +1754,7 @@ async fn process_terminal_ws_session(
                             use base64::Engine;
                             BASE64_ENGINE.decode(&line.data).unwrap_or_default()
                         };
-                        if socket.send(Message::Binary(bytes)).await.is_err() {
+                        if send_channel_frame(&mut socket, CH_STDOUT, bytes).await.is_err() {
                             break;
                         }
                     }
@@ -1796,7 +1765,7 @@ async fn process_terminal_ws_session(
             _ = exit_poll.tick() => {
                 if let Ok(snapshot) = runtime.snapshot(&id).await {
                     if snapshot.status == ProcessStatus::Exited {
-                        let _ = send_ws_json(
+                        let _ = send_status_json(
                             &mut socket,
                             json!({
                                 "type": "exit",
@@ -1804,6 +1773,7 @@ async fn process_terminal_ws_session(
                             }),
                         )
                         .await;
+                        let _ = send_close_signal(&mut socket).await;
                         let _ = socket.close().await;
                         break;
                     }
@@ -1813,17 +1783,30 @@ async fn process_terminal_ws_session(
     }
 }
 
-async fn send_ws_json(socket: &mut WebSocket, payload: Value) -> Result<(), ()> {
+async fn send_channel_frame(
+    socket: &mut WebSocket,
+    channel: u8,
+    payload: impl Into<Vec<u8>>,
+) -> Result<(), ()> {
+    let mut frame = vec![channel];
+    frame.extend(payload.into());
     socket
-        .send(Message::Text(
-            serde_json::to_string(&payload).map_err(|_| ())?,
-        ))
+        .send(Message::Binary(frame.into()))
         .await
         .map_err(|_| ())
 }
 
-async fn send_ws_error(socket: &mut WebSocket, message: &str) -> Result<(), ()> {
-    send_ws_json(
+async fn send_status_json(socket: &mut WebSocket, payload: Value) -> Result<(), ()> {
+    send_channel_frame(
+        socket,
+        CH_STATUS,
+        serde_json::to_vec(&payload).map_err(|_| ())?,
+    )
+    .await
+}
+
+async fn send_status_error(socket: &mut WebSocket, message: &str) -> Result<(), ()> {
+    send_status_json(
         socket,
         json!({
             "type": "error",
@@ -1831,6 +1814,10 @@ async fn send_ws_error(socket: &mut WebSocket, message: &str) -> Result<(), ()> 
         }),
     )
     .await
+}
+
+async fn send_close_signal(socket: &mut WebSocket) -> Result<(), ()> {
+    send_channel_frame(socket, CH_CLOSE, Vec::<u8>::new()).await
 }
 
 #[utoipa::path(

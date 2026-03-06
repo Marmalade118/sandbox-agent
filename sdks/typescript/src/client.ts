@@ -51,13 +51,17 @@ import {
   type ProcessRunRequest,
   type ProcessRunResponse,
   type ProcessSignalQuery,
-  type ProcessTerminalResizeRequest,
-  type ProcessTerminalResizeResponse,
   type SessionEvent,
   type SessionPersistDriver,
   type SessionRecord,
   type SkillsConfig,
   type SkillsConfigQuery,
+  TerminalChannel,
+  type TerminalErrorStatus,
+  type TerminalExitStatus,
+  type TerminalReadyStatus,
+  type TerminalResizePayload,
+  type TerminalStatusMessage,
 } from "./types.ts";
 
 const API_PREFIX = "/v1";
@@ -133,6 +137,8 @@ export interface ProcessTerminalConnectOptions extends ProcessTerminalWebSocketU
   protocols?: string | string[];
   WebSocket?: typeof WebSocket;
 }
+
+export type ProcessTerminalSessionOptions = ProcessTerminalConnectOptions;
 
 export class SandboxAgentError extends Error {
   readonly status: number;
@@ -469,6 +475,188 @@ export class LiveAcpConnection {
       return null;
     }
     return this.localByAgentSessionId.get(agentSessionId) ?? null;
+  }
+}
+
+export class ProcessTerminalSession {
+  readonly socket: WebSocket;
+  readonly closed: Promise<void>;
+
+  private readonly readyListeners = new Set<(status: TerminalReadyStatus) => void>();
+  private readonly dataListeners = new Set<(data: Uint8Array) => void>();
+  private readonly exitListeners = new Set<(status: TerminalExitStatus) => void>();
+  private readonly errorListeners = new Set<(error: TerminalErrorStatus | Error) => void>();
+  private readonly closeListeners = new Set<() => void>();
+  private readonly textEncoder = new TextEncoder();
+
+  private closeSignalSent = false;
+  private closedResolve!: () => void;
+
+  constructor(socket: WebSocket) {
+    this.socket = socket;
+    this.socket.binaryType = "arraybuffer";
+    this.closed = new Promise<void>((resolve) => {
+      this.closedResolve = resolve;
+    });
+
+    this.socket.addEventListener("message", (event) => {
+      void this.handleMessage(event.data);
+    });
+    this.socket.addEventListener("error", () => {
+      this.emitError(new Error("Terminal websocket connection failed."));
+    });
+    this.socket.addEventListener("close", () => {
+      this.closedResolve();
+      for (const listener of this.closeListeners) {
+        listener();
+      }
+    });
+  }
+
+  onReady(listener: (status: TerminalReadyStatus) => void): () => void {
+    this.readyListeners.add(listener);
+    return () => {
+      this.readyListeners.delete(listener);
+    };
+  }
+
+  onData(listener: (data: Uint8Array) => void): () => void {
+    this.dataListeners.add(listener);
+    return () => {
+      this.dataListeners.delete(listener);
+    };
+  }
+
+  onExit(listener: (status: TerminalExitStatus) => void): () => void {
+    this.exitListeners.add(listener);
+    return () => {
+      this.exitListeners.delete(listener);
+    };
+  }
+
+  onError(listener: (error: TerminalErrorStatus | Error) => void): () => void {
+    this.errorListeners.add(listener);
+    return () => {
+      this.errorListeners.delete(listener);
+    };
+  }
+
+  onClose(listener: () => void): () => void {
+    this.closeListeners.add(listener);
+    return () => {
+      this.closeListeners.delete(listener);
+    };
+  }
+
+  sendInput(data: string | ArrayBuffer | ArrayBufferView): void {
+    this.sendChannel(TerminalChannel.stdin, encodeTerminalBytes(data));
+  }
+
+  resize(payload: TerminalResizePayload): void {
+    this.sendChannel(
+      TerminalChannel.resize,
+      this.textEncoder.encode(JSON.stringify(payload)),
+    );
+  }
+
+  close(): void {
+    if (this.socket.readyState === WebSocket.CONNECTING) {
+      this.socket.addEventListener(
+        "open",
+        () => {
+          this.close();
+        },
+        { once: true },
+      );
+      return;
+    }
+
+    if (this.socket.readyState === WebSocket.OPEN) {
+      if (!this.closeSignalSent) {
+        this.closeSignalSent = true;
+        this.sendChannel(TerminalChannel.close, new Uint8Array());
+      }
+      this.socket.close();
+      return;
+    }
+
+    if (this.socket.readyState !== WebSocket.CLOSED) {
+      this.socket.close();
+    }
+  }
+
+  private async handleMessage(data: unknown): Promise<void> {
+    try {
+      const bytes = await decodeTerminalBytes(data);
+      if (bytes.length === 0) {
+        this.emitError(new Error("Received terminal frame without a channel byte."));
+        return;
+      }
+
+      const channel = bytes[0];
+      const payload = bytes.subarray(1);
+
+      if (channel === TerminalChannel.stdout || channel === TerminalChannel.stderr) {
+        for (const listener of this.dataListeners) {
+          listener(payload);
+        }
+        return;
+      }
+
+      if (channel === TerminalChannel.status) {
+        const text = new TextDecoder().decode(payload);
+        const parsed = JSON.parse(text) as unknown;
+        if (!isTerminalStatusMessage(parsed)) {
+          this.emitError(new Error("Received invalid terminal status payload."));
+          return;
+        }
+
+        if (parsed.type === "ready") {
+          for (const listener of this.readyListeners) {
+            listener(parsed);
+          }
+          return;
+        }
+
+        if (parsed.type === "exit") {
+          for (const listener of this.exitListeners) {
+            listener(parsed);
+          }
+          return;
+        }
+
+        this.emitError(parsed);
+        return;
+      }
+
+      if (channel === TerminalChannel.close) {
+        if (this.socket.readyState === WebSocket.OPEN) {
+          this.socket.close();
+        }
+        return;
+      }
+
+      this.emitError(new Error(`Received unsupported terminal channel ${channel}.`));
+    } catch (error) {
+      this.emitError(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  private sendChannel(channel: number, payload: Uint8Array): void {
+    if (this.socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    const frame = new Uint8Array(payload.length + 1);
+    frame[0] = channel;
+    frame.set(payload, 1);
+    this.socket.send(frame);
+  }
+
+  private emitError(error: TerminalErrorStatus | Error): void {
+    for (const listener of this.errorListeners) {
+      listener(error);
+    }
   }
 }
 
@@ -893,19 +1081,6 @@ export class SandboxAgent {
     });
   }
 
-  async resizeProcessTerminal(
-    id: string,
-    request: ProcessTerminalResizeRequest,
-  ): Promise<ProcessTerminalResizeResponse> {
-    return this.requestJson(
-      "POST",
-      `${API_PREFIX}/processes/${encodeURIComponent(id)}/terminal/resize`,
-      {
-        body: request,
-      },
-    );
-  }
-
   buildProcessTerminalWebSocketUrl(
     id: string,
     options: ProcessTerminalWebSocketUrlOptions = {},
@@ -930,8 +1105,15 @@ export class SandboxAgent {
       this.buildProcessTerminalWebSocketUrl(id, {
         accessToken: options.accessToken,
       }),
-      options.protocols,
+      options.protocols ?? "channel.k8s.io",
     );
+  }
+
+  connectProcessTerminal(
+    id: string,
+    options: ProcessTerminalSessionOptions = {},
+  ): ProcessTerminalSession {
+    return new ProcessTerminalSession(this.connectProcessTerminalWebSocket(id, options));
   }
 
   private async getLiveConnection(agent: string): Promise<LiveAcpConnection> {
@@ -1203,6 +1385,62 @@ type RequestOptions = {
   accept?: string;
   signal?: AbortSignal;
 };
+
+function isTerminalStatusMessage(value: unknown): value is TerminalStatusMessage {
+  if (!isRecord(value) || typeof value.type !== "string") {
+    return false;
+  }
+
+  if (value.type === "ready") {
+    return typeof value.processId === "string";
+  }
+
+  if (value.type === "exit") {
+    return (
+      value.exitCode === undefined ||
+      value.exitCode === null ||
+      typeof value.exitCode === "number"
+    );
+  }
+
+  if (value.type === "error") {
+    return typeof value.message === "string";
+  }
+
+  return false;
+}
+
+function encodeTerminalBytes(data: string | ArrayBuffer | ArrayBufferView): Uint8Array {
+  if (typeof data === "string") {
+    return new TextEncoder().encode(data);
+  }
+
+  if (data instanceof ArrayBuffer) {
+    return new Uint8Array(data);
+  }
+
+  return new Uint8Array(data.buffer, data.byteOffset, data.byteLength).slice();
+}
+
+async function decodeTerminalBytes(data: unknown): Promise<Uint8Array> {
+  if (data instanceof ArrayBuffer) {
+    return new Uint8Array(data);
+  }
+
+  if (ArrayBuffer.isView(data)) {
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength).slice();
+  }
+
+  if (typeof Blob !== "undefined" && data instanceof Blob) {
+    return new Uint8Array(await data.arrayBuffer());
+  }
+
+  if (typeof data === "string") {
+    throw new Error("Received text terminal frame; expected channel.k8s.io binary data.");
+  }
+
+  throw new Error(`Unsupported terminal frame payload: ${String(data)}`);
+}
 
 /**
  * Auto-select and call `authenticate` based on the agent's advertised auth methods.

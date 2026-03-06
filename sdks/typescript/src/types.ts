@@ -46,43 +46,40 @@ export type ProcessRunRequest = JsonRequestBody<operations["post_v1_processes_ru
 export type ProcessRunResponse = JsonResponse<operations["post_v1_processes_run"], 200>;
 export type ProcessSignalQuery = QueryParams<operations["post_v1_process_stop"]>;
 export type ProcessState = components["schemas"]["ProcessState"];
-export type ProcessTerminalResizeRequest = JsonRequestBody<operations["post_v1_process_terminal_resize"]>;
-export type ProcessTerminalResizeResponse = JsonResponse<operations["post_v1_process_terminal_resize"], 200>;
 
-export type ProcessTerminalClientFrame =
-  | {
-      type: "input";
-      data: string;
-      encoding?: string;
-    }
-  | {
-      type: "resize";
-      cols: number;
-      rows: number;
-    }
-  | {
-      type: "close";
-    };
+export const TerminalChannel = {
+  stdin: 0,
+  stdout: 1,
+  stderr: 2,
+  status: 3,
+  resize: 4,
+  close: 255,
+} as const;
 
-export interface ProcessTerminalReadyFrame {
+export interface TerminalReadyStatus {
   type: "ready";
   processId: string;
 }
 
-export interface ProcessTerminalExitFrame {
+export interface TerminalExitStatus {
   type: "exit";
   exitCode?: number | null;
 }
 
-export interface ProcessTerminalErrorFrame {
+export interface TerminalErrorStatus {
   type: "error";
   message: string;
 }
 
-export type ProcessTerminalServerFrame =
-  | ProcessTerminalReadyFrame
-  | ProcessTerminalExitFrame
-  | ProcessTerminalErrorFrame;
+export type TerminalStatusMessage =
+  | TerminalReadyStatus
+  | TerminalExitStatus
+  | TerminalErrorStatus;
+
+export interface TerminalResizePayload {
+  cols: number;
+  rows: number;
+}
 
 export interface SessionRecord {
   id: string;
