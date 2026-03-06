@@ -39,6 +39,20 @@ import {
   type McpConfigQuery,
   type McpServerConfig,
   type ProblemDetails,
+  type ProcessConfig,
+  type ProcessCreateRequest,
+  type ProcessInfo,
+  type ProcessInputRequest,
+  type ProcessInputResponse,
+  type ProcessListResponse,
+  type ProcessLogEntry,
+  type ProcessLogsQuery,
+  type ProcessLogsResponse,
+  type ProcessRunRequest,
+  type ProcessRunResponse,
+  type ProcessSignalQuery,
+  type ProcessTerminalResizeRequest,
+  type ProcessTerminalResizeResponse,
   type SessionEvent,
   type SessionPersistDriver,
   type SessionRecord,
@@ -98,6 +112,27 @@ export interface SessionSendOptions {
 }
 
 export type SessionEventListener = (event: SessionEvent) => void;
+export type ProcessLogListener = (entry: ProcessLogEntry) => void;
+export type ProcessLogFollowQuery = Omit<ProcessLogsQuery, "follow">;
+
+export interface AgentQueryOptions {
+  config?: boolean;
+  noCache?: boolean;
+}
+
+export interface ProcessLogSubscription {
+  close(): void;
+  closed: Promise<void>;
+}
+
+export interface ProcessTerminalWebSocketUrlOptions {
+  accessToken?: string;
+}
+
+export interface ProcessTerminalConnectOptions extends ProcessTerminalWebSocketUrlOptions {
+  protocols?: string | string[];
+  WebSocket?: typeof WebSocket;
+}
 
 export class SandboxAgentError extends Error {
   readonly status: number;
@@ -674,15 +709,15 @@ export class SandboxAgent {
     return this.requestJson("GET", `${API_PREFIX}/health`);
   }
 
-  async listAgents(options?: { config?: boolean }): Promise<AgentListResponse> {
+  async listAgents(options?: AgentQueryOptions): Promise<AgentListResponse> {
     return this.requestJson("GET", `${API_PREFIX}/agents`, {
-      query: options?.config ? { config: "true" } : undefined,
+      query: toAgentQuery(options),
     });
   }
 
-  async getAgent(agent: string, options?: { config?: boolean }): Promise<AgentInfo> {
+  async getAgent(agent: string, options?: AgentQueryOptions): Promise<AgentInfo> {
     return this.requestJson("GET", `${API_PREFIX}/agents/${encodeURIComponent(agent)}`, {
-      query: options?.config ? { config: "true" } : undefined,
+      query: toAgentQuery(options),
     });
   }
 
@@ -769,6 +804,134 @@ export class SandboxAgent {
 
   async deleteSkillsConfig(query: SkillsConfigQuery): Promise<void> {
     await this.requestRaw("DELETE", `${API_PREFIX}/config/skills`, { query });
+  }
+
+  async getProcessConfig(): Promise<ProcessConfig> {
+    return this.requestJson("GET", `${API_PREFIX}/processes/config`);
+  }
+
+  async setProcessConfig(config: ProcessConfig): Promise<ProcessConfig> {
+    return this.requestJson("POST", `${API_PREFIX}/processes/config`, {
+      body: config,
+    });
+  }
+
+  async createProcess(request: ProcessCreateRequest): Promise<ProcessInfo> {
+    return this.requestJson("POST", `${API_PREFIX}/processes`, {
+      body: request,
+    });
+  }
+
+  async runProcess(request: ProcessRunRequest): Promise<ProcessRunResponse> {
+    return this.requestJson("POST", `${API_PREFIX}/processes/run`, {
+      body: request,
+    });
+  }
+
+  async listProcesses(): Promise<ProcessListResponse> {
+    return this.requestJson("GET", `${API_PREFIX}/processes`);
+  }
+
+  async getProcess(id: string): Promise<ProcessInfo> {
+    return this.requestJson("GET", `${API_PREFIX}/processes/${encodeURIComponent(id)}`);
+  }
+
+  async stopProcess(id: string, query?: ProcessSignalQuery): Promise<ProcessInfo> {
+    return this.requestJson("POST", `${API_PREFIX}/processes/${encodeURIComponent(id)}/stop`, {
+      query,
+    });
+  }
+
+  async killProcess(id: string, query?: ProcessSignalQuery): Promise<ProcessInfo> {
+    return this.requestJson("POST", `${API_PREFIX}/processes/${encodeURIComponent(id)}/kill`, {
+      query,
+    });
+  }
+
+  async deleteProcess(id: string): Promise<void> {
+    await this.requestRaw("DELETE", `${API_PREFIX}/processes/${encodeURIComponent(id)}`);
+  }
+
+  async getProcessLogs(id: string, query: ProcessLogFollowQuery = {}): Promise<ProcessLogsResponse> {
+    return this.requestJson("GET", `${API_PREFIX}/processes/${encodeURIComponent(id)}/logs`, {
+      query,
+    });
+  }
+
+  async followProcessLogs(
+    id: string,
+    listener: ProcessLogListener,
+    query: ProcessLogFollowQuery = {},
+  ): Promise<ProcessLogSubscription> {
+    const abortController = new AbortController();
+    const response = await this.requestRaw(
+      "GET",
+      `${API_PREFIX}/processes/${encodeURIComponent(id)}/logs`,
+      {
+        query: { ...query, follow: true },
+        accept: "text/event-stream",
+        signal: abortController.signal,
+      },
+    );
+
+    if (!response.body) {
+      abortController.abort();
+      throw new Error("SSE stream is not readable in this environment.");
+    }
+
+    const closed = consumeProcessLogSse(response.body, listener, abortController.signal);
+
+    return {
+      close: () => abortController.abort(),
+      closed,
+    };
+  }
+
+  async sendProcessInput(id: string, request: ProcessInputRequest): Promise<ProcessInputResponse> {
+    return this.requestJson("POST", `${API_PREFIX}/processes/${encodeURIComponent(id)}/input`, {
+      body: request,
+    });
+  }
+
+  async resizeProcessTerminal(
+    id: string,
+    request: ProcessTerminalResizeRequest,
+  ): Promise<ProcessTerminalResizeResponse> {
+    return this.requestJson(
+      "POST",
+      `${API_PREFIX}/processes/${encodeURIComponent(id)}/terminal/resize`,
+      {
+        body: request,
+      },
+    );
+  }
+
+  buildProcessTerminalWebSocketUrl(
+    id: string,
+    options: ProcessTerminalWebSocketUrlOptions = {},
+  ): string {
+    return toWebSocketUrl(
+      this.buildUrl(`${API_PREFIX}/processes/${encodeURIComponent(id)}/terminal/ws`, {
+        access_token: options.accessToken ?? this.token,
+      }),
+    );
+  }
+
+  connectProcessTerminalWebSocket(
+    id: string,
+    options: ProcessTerminalConnectOptions = {},
+  ): WebSocket {
+    const WebSocketCtor = options.WebSocket ?? globalThis.WebSocket;
+    if (!WebSocketCtor) {
+      throw new Error("WebSocket API is not available; provide a WebSocket implementation.");
+    }
+
+    return new WebSocketCtor(
+      this.buildProcessTerminalWebSocketUrl(id, {
+        accessToken: options.accessToken,
+      }),
+      options.protocols,
+    );
   }
 
   private async getLiveConnection(agent: string): Promise<LiveAcpConnection> {
@@ -1068,6 +1231,17 @@ async function autoAuthenticate(acp: AcpHttpClient, methods: AuthMethod[]): Prom
   }
 }
 
+function toAgentQuery(options: AgentQueryOptions | undefined): Record<string, QueryValue> | undefined {
+  if (!options) {
+    return undefined;
+  }
+
+  return {
+    config: options.config,
+    no_cache: options.noCache,
+  };
+}
+
 function normalizeSessionInit(
   value: Omit<NewSessionRequest, "_meta"> | undefined,
 ): Omit<NewSessionRequest, "_meta"> {
@@ -1229,4 +1403,94 @@ async function readProblem(response: Response): Promise<ProblemDetails | undefin
   } catch {
     return undefined;
   }
+}
+
+async function consumeProcessLogSse(
+  body: ReadableStream<Uint8Array>,
+  listener: ProcessLogListener,
+  signal: AbortSignal,
+): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (!signal.aborted) {
+      const { done, value } = await reader.read();
+      if (done) {
+        return;
+      }
+
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+
+      let separatorIndex = buffer.indexOf("\n\n");
+      while (separatorIndex !== -1) {
+        const chunk = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+
+        const entry = parseProcessLogSseChunk(chunk);
+        if (entry) {
+          listener(entry);
+        }
+
+        separatorIndex = buffer.indexOf("\n\n");
+      }
+    }
+  } catch (error) {
+    if (signal.aborted || isAbortError(error)) {
+      return;
+    }
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function parseProcessLogSseChunk(chunk: string): ProcessLogEntry | null {
+  if (!chunk.trim()) {
+    return null;
+  }
+
+  let eventName = "message";
+  const dataLines: string[] = [];
+
+  for (const line of chunk.split("\n")) {
+    if (!line || line.startsWith(":")) {
+      continue;
+    }
+
+    if (line.startsWith("event:")) {
+      eventName = line.slice(6).trim();
+      continue;
+    }
+
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+
+  if (eventName !== "log") {
+    return null;
+  }
+
+  const data = dataLines.join("\n");
+  if (!data.trim()) {
+    return null;
+  }
+
+  return JSON.parse(data) as ProcessLogEntry;
+}
+
+function toWebSocketUrl(url: string): string {
+  const parsed = new URL(url);
+  if (parsed.protocol === "http:") {
+    parsed.protocol = "ws:";
+  } else if (parsed.protocol === "https:") {
+    parsed.protocol = "wss:";
+  }
+  return parsed.toString();
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }

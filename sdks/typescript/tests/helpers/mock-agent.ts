@@ -2,18 +2,6 @@ import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export function prepareMockAgentDataHome(dataHome: string): void {
-  const installDir = join(dataHome, "sandbox-agent", "bin");
-  const processDir = join(installDir, "agent_processes");
-  mkdirSync(processDir, { recursive: true });
-
-  const runner = process.platform === "win32"
-    ? join(processDir, "mock-acp.cmd")
-    : join(processDir, "mock-acp");
-
-  const scriptFile = process.platform === "win32"
-    ? join(processDir, "mock-acp.js")
-    : runner;
-
   const nodeScript = String.raw`#!/usr/bin/env node
 const { createInterface } = require("node:readline");
 
@@ -127,14 +115,43 @@ rl.on("line", (line) => {
 });
 `;
 
-  writeFileSync(scriptFile, nodeScript);
+  for (const installDir of installDirsForDataHome(dataHome)) {
+    const processDir = join(installDir, "agent_processes");
+    mkdirSync(processDir, { recursive: true });
 
-  if (process.platform === "win32") {
-    writeFileSync(runner, `@echo off\r\nnode "${scriptFile}" %*\r\n`);
+    const runner = process.platform === "win32"
+      ? join(processDir, "mock-acp.cmd")
+      : join(processDir, "mock-acp");
+
+    const scriptFile = process.platform === "win32"
+      ? join(processDir, "mock-acp.js")
+      : runner;
+
+    writeFileSync(scriptFile, nodeScript);
+
+    if (process.platform === "win32") {
+      writeFileSync(runner, `@echo off\r\nnode "${scriptFile}" %*\r\n`);
+    }
+
+    chmodSync(scriptFile, 0o755);
+    if (process.platform === "win32") {
+      chmodSync(runner, 0o755);
+    }
+  }
+}
+
+function installDirsForDataHome(dataHome: string): string[] {
+  const candidates = new Set<string>([
+    join(dataHome, "sandbox-agent", "bin"),
+  ]);
+
+  if (process.platform === "darwin") {
+    candidates.add(join(dataHome, "Library", "Application Support", "sandbox-agent", "bin"));
   }
 
-  chmodSync(scriptFile, 0o755);
   if (process.platform === "win32") {
-    chmodSync(runner, 0o755);
+    candidates.add(join(dataHome, "AppData", "Roaming", "sandbox-agent", "bin"));
   }
+
+  return [...candidates];
 }
