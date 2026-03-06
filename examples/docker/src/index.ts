@@ -44,7 +44,7 @@ await container.start();
 
 const baseUrl = `http://127.0.0.1:${PORT}`;
 
-const client = await SandboxAgent.connect({ baseUrl, waitForHealth: { timeoutMs: 120_000 } });
+const client = await SandboxAgent.connect({ baseUrl });
 const session = await client.createSession({ agent: detectAgent(), sessionInit: { cwd: "/root", mcpServers: [] } });
 const sessionId = session.id;
 

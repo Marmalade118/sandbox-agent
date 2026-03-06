@@ -138,7 +138,7 @@ export async function runComputeSdkExample(): Promise<void> {
   process.once("SIGINT", handleExit);
   process.once("SIGTERM", handleExit);
 
-  const client = await SandboxAgent.connect({ baseUrl, waitForHealth: { timeoutMs: 120_000 } });
+  const client = await SandboxAgent.connect({ baseUrl });
   const session = await client.createSession({ agent: detectAgent(), sessionInit: { cwd: "/home", mcpServers: [] } });
   const sessionId = session.id;
 

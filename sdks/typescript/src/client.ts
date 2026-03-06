@@ -510,6 +510,7 @@ export class SandboxAgent {
       token: handle.token,
       fetch: options.fetch,
       headers: options.headers,
+      waitForHealth: false,
       persist: options.persist,
       replayMaxEvents: options.replayMaxEvents,
       replayMaxChars: options.replayMaxChars,
@@ -1297,11 +1298,11 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
 function normalizeHealthWaitOptions(
   value: boolean | SandboxAgentHealthWaitOptions | undefined,
 ): NormalizedHealthWaitOptions {
-  if (!value) {
+  if (value === false) {
     return { enabled: false };
   }
 
-  if (value === true) {
+  if (value === true || value === undefined) {
     return { enabled: true };
   }
 

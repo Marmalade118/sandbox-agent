@@ -28,7 +28,7 @@ await sandbox.commands.run("sandbox-agent server --no-token --host 0.0.0.0 --por
 const baseUrl = `https://${sandbox.getHost(3000)}`;
 
 console.log("Connecting to server...");
-const client = await SandboxAgent.connect({ baseUrl, waitForHealth: { timeoutMs: 120_000 } });
+const client = await SandboxAgent.connect({ baseUrl });
 const session = await client.createSession({ agent: detectAgent(), sessionInit: { cwd: "/home/user", mcpServers: [] } });
 const sessionId = session.id;
 

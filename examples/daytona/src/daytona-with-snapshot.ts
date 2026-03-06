@@ -26,7 +26,7 @@ await sandbox.process.executeCommand(
 const baseUrl = (await sandbox.getSignedPreviewUrl(3000, 4 * 60 * 60)).url;
 
 console.log("Connecting to server...");
-const client = await SandboxAgent.connect({ baseUrl, waitForHealth: { timeoutMs: 120_000 } });
+const client = await SandboxAgent.connect({ baseUrl });
 const session = await client.createSession({ agent: detectAgent(), sessionInit: { cwd: "/home/daytona", mcpServers: [] } });
 const sessionId = session.id;
 

@@ -204,7 +204,6 @@ describe("Integration: TypeScript SDK flat session API", () => {
     const sdk = await SandboxAgent.connect({
       token,
       fetch: customFetch,
-      waitForHealth: true,
     });
 
     const agents = await sdk.listAgents();

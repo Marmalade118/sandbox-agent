@@ -39,7 +39,7 @@ await sandbox.runCommand({
 const baseUrl = sandbox.domain(3000);
 
 console.log("Connecting to server...");
-const client = await SandboxAgent.connect({ baseUrl, waitForHealth: { timeoutMs: 120_000 } });
+const client = await SandboxAgent.connect({ baseUrl });
 const session = await client.createSession({ agent: detectAgent(), sessionInit: { cwd: "/home/vercel-sandbox", mcpServers: [] } });
 const sessionId = session.id;
 
