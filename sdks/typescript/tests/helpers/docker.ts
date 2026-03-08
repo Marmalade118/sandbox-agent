@@ -154,7 +154,8 @@ export async function startDockerSandboxAgent(
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
-    const hostPort = mapping.split(":").at(-1)?.trim();
+    const mappingParts = mapping.split(":");
+    const hostPort = mappingParts[mappingParts.length - 1]?.trim();
     if (!hostPort) {
       throw new Error(`missing mapped host port in ${mapping}`);
     }
