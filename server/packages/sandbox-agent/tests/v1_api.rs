@@ -93,8 +93,11 @@ fn serve_registry_once(document: Value) -> String {
     let body = document.to_string();
 
     std::thread::spawn(move || {
-        if let Ok((mut stream, _)) = listener.accept() {
-            respond_json(&mut stream, &body);
+        loop {
+            match listener.accept() {
+                Ok((mut stream, _)) => respond_json(&mut stream, &body),
+                Err(_) => break,
+            }
         }
     });
 
