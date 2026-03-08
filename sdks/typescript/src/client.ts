@@ -681,7 +681,7 @@ export class ProcessTerminalSession {
   }
 
   close(): void {
-    if (this.socket.readyState === WebSocket.CONNECTING) {
+    if (this.socket.readyState === WS_READY_STATE_CONNECTING) {
       this.socket.addEventListener(
         "open",
         () => {
@@ -692,7 +692,7 @@ export class ProcessTerminalSession {
       return;
     }
 
-    if (this.socket.readyState === WebSocket.OPEN) {
+    if (this.socket.readyState === WS_READY_STATE_OPEN) {
       if (!this.closeSignalSent) {
         this.closeSignalSent = true;
         this.sendFrame({ type: "close" });
@@ -701,7 +701,7 @@ export class ProcessTerminalSession {
       return;
     }
 
-    if (this.socket.readyState !== WebSocket.CLOSED) {
+    if (this.socket.readyState !== WS_READY_STATE_CLOSED) {
       this.socket.close();
     }
   }
@@ -743,7 +743,7 @@ export class ProcessTerminalSession {
   }
 
   private sendFrame(frame: ProcessTerminalClientFrame): void {
-    if (this.socket.readyState !== WebSocket.OPEN) {
+    if (this.socket.readyState !== WS_READY_STATE_OPEN) {
       return;
     }
 
@@ -756,6 +756,10 @@ export class ProcessTerminalSession {
     }
   }
 }
+
+const WS_READY_STATE_CONNECTING = 0;
+const WS_READY_STATE_OPEN = 1;
+const WS_READY_STATE_CLOSED = 3;
 
 export class SandboxAgent {
   private readonly baseUrl: string;
