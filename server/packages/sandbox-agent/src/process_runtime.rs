@@ -331,7 +331,10 @@ impl ProcessRuntime {
         }
         timeout_ms = timeout_ms.min(config.max_run_timeout_ms);
 
-        let max_output_bytes = spec.max_output_bytes.unwrap_or(config.max_output_bytes);
+        let max_output_bytes = spec
+            .max_output_bytes
+            .unwrap_or(config.max_output_bytes)
+            .min(config.max_output_bytes);
 
         let mut cmd = Command::new(&spec.command);
         cmd.args(&spec.args)
@@ -343,6 +346,9 @@ impl ProcessRuntime {
             cmd.current_dir(cwd);
         }
 
+        if !spec.env.contains_key("TERM") {
+            cmd.env("TERM", "xterm-256color");
+        }
         for (key, value) in &spec.env {
             cmd.env(key, value);
         }

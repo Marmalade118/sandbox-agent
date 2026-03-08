@@ -135,6 +135,38 @@ fn write_executable(path: &Path, script: &str) {
     }
 }
 
+fn write_fake_npm(path: &Path) {
+    write_executable(
+        path,
+        r#"#!/usr/bin/env sh
+set -e
+prefix=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    install|--no-audit|--no-fund)
+      shift
+      ;;
+    --prefix)
+      prefix="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+[ -n "$prefix" ] || exit 1
+mkdir -p "$prefix/node_modules/.bin"
+for bin in claude-code-acp codex-acp amp-acp pi-acp cursor-agent-acp; do
+  echo '#!/usr/bin/env sh' > "$prefix/node_modules/.bin/$bin"
+  echo 'exit 0' >> "$prefix/node_modules/.bin/$bin"
+  chmod +x "$prefix/node_modules/.bin/$bin"
+done
+exit 0
+"#,
+    );
+}
+
 fn serve_registry_once(document: Value) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind registry server");
     let address = listener.local_addr().expect("registry address");

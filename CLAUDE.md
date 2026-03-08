@@ -109,6 +109,7 @@
   - `docs/cli.mdx`
   - `docs/quickstart.mdx`
   - `docs/sdk-overview.mdx`
+  - `docs/react-components.mdx`
   - `docs/session-persistence.mdx`
   - `docs/deploy/local.mdx`
   - `docs/deploy/cloudflare.mdx`

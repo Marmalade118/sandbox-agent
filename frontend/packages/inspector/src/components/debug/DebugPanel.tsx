@@ -1,15 +1,17 @@
-import { ChevronLeft, ChevronRight, Cloud, PlayCircle, Server, Terminal, Wrench } from "lucide-react";
+import { ChevronLeft, ChevronRight, Cloud, Play, PlayCircle, Server, Terminal, Wrench } from "lucide-react";
 import type { AgentInfo, SandboxAgent, SessionEvent } from "sandbox-agent";
 
 type AgentModeInfo = { id: string; name: string; description: string };
 import AgentsTab from "./AgentsTab";
 import EventsTab from "./EventsTab";
 import McpTab from "./McpTab";
+import ProcessesTab from "./ProcessesTab";
+import ProcessRunTab from "./ProcessRunTab";
 import SkillsTab from "./SkillsTab";
 import RequestLogTab from "./RequestLogTab";
 import type { RequestLog } from "../../types/requestLog";
 
-export type DebugTab = "log" | "events" | "agents" | "mcp" | "skills";
+export type DebugTab = "log" | "events" | "agents" | "mcp" | "skills" | "processes" | "run-process";
 
 const DebugPanel = ({
   debugTab,
@@ -81,6 +83,14 @@ const DebugPanel = ({
           <Server className="button-icon" style={{ marginRight: 4, width: 12, height: 12 }} />
           MCP
         </button>
+        <button className={`debug-tab ${debugTab === "processes" ? "active" : ""}`} onClick={() => onDebugTabChange("processes")}>
+          <Terminal className="button-icon" style={{ marginRight: 4, width: 12, height: 12 }} />
+          Processes
+        </button>
+        <button className={`debug-tab ${debugTab === "run-process" ? "active" : ""}`} onClick={() => onDebugTabChange("run-process")}>
+          <Play className="button-icon" style={{ marginRight: 4, width: 12, height: 12 }} />
+          Run Once
+        </button>
         <button className={`debug-tab ${debugTab === "skills" ? "active" : ""}`} onClick={() => onDebugTabChange("skills")}>
           <Wrench className="button-icon" style={{ marginRight: 4, width: 12, height: 12 }} />
           Skills
@@ -120,6 +130,14 @@ const DebugPanel = ({
 
         {debugTab === "mcp" && (
           <McpTab getClient={getClient} />
+        )}
+
+        {debugTab === "processes" && (
+          <ProcessesTab getClient={getClient} />
+        )}
+
+        {debugTab === "run-process" && (
+          <ProcessRunTab getClient={getClient} />
         )}
 
         {debugTab === "skills" && (

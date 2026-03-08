@@ -51,6 +51,7 @@
 						"pages": [
 							"quickstart",
 							"sdk-overview",
+							"react-components",
 							{
 								"group": "Deploy",
 								"icon": "server",
@@ -79,7 +80,7 @@
 					},
 					{
 						"group": "System",
-						"pages": ["file-system"]
+						"pages": ["file-system", "processes"]
 					},
 					{
 						"group": "Orchestration",

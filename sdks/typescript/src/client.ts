@@ -56,6 +56,8 @@ import {
   type ProcessRunRequest,
   type ProcessRunResponse,
   type ProcessSignalQuery,
+  type ProcessTerminalClientFrame,
+  type ProcessTerminalServerFrame,
   type ProcessTerminalResizeRequest,
   type ProcessTerminalResizeResponse,
   type SessionEvent,
@@ -63,6 +65,10 @@ import {
   type SessionRecord,
   type SkillsConfig,
   type SkillsConfigQuery,
+  type TerminalErrorStatus,
+  type TerminalExitStatus,
+  type TerminalReadyStatus,
+  type TerminalResizePayload,
 } from "./types.ts";
 
 const API_PREFIX = "/v1";
@@ -157,6 +163,8 @@ export interface ProcessTerminalConnectOptions extends ProcessTerminalWebSocketU
   protocols?: string | string[];
   WebSocket?: typeof WebSocket;
 }
+
+export type ProcessTerminalSessionOptions = ProcessTerminalConnectOptions;
 
 export class SandboxAgentError extends Error {
   readonly status: number;
@@ -585,6 +593,173 @@ export class LiveAcpConnection {
     return this.localByAgentSessionId.get(agentSessionId) ?? null;
   }
 }
+
+export class ProcessTerminalSession {
+  readonly socket: WebSocket;
+  readonly closed: Promise<void>;
+
+  private readonly readyListeners = new Set<(status: TerminalReadyStatus) => void>();
+  private readonly dataListeners = new Set<(data: Uint8Array) => void>();
+  private readonly exitListeners = new Set<(status: TerminalExitStatus) => void>();
+  private readonly errorListeners = new Set<(error: TerminalErrorStatus | Error) => void>();
+  private readonly closeListeners = new Set<() => void>();
+
+  private closeSignalSent = false;
+  private closedResolve!: () => void;
+
+  constructor(socket: WebSocket) {
+    this.socket = socket;
+    this.socket.binaryType = "arraybuffer";
+    this.closed = new Promise<void>((resolve) => {
+      this.closedResolve = resolve;
+    });
+
+    this.socket.addEventListener("message", (event) => {
+      void this.handleMessage(event.data);
+    });
+    this.socket.addEventListener("error", () => {
+      this.emitError(new Error("Terminal websocket connection failed."));
+    });
+    this.socket.addEventListener("close", () => {
+      this.closedResolve();
+      for (const listener of this.closeListeners) {
+        listener();
+      }
+    });
+  }
+
+  onReady(listener: (status: TerminalReadyStatus) => void): () => void {
+    this.readyListeners.add(listener);
+    return () => {
+      this.readyListeners.delete(listener);
+    };
+  }
+
+  onData(listener: (data: Uint8Array) => void): () => void {
+    this.dataListeners.add(listener);
+    return () => {
+      this.dataListeners.delete(listener);
+    };
+  }
+
+  onExit(listener: (status: TerminalExitStatus) => void): () => void {
+    this.exitListeners.add(listener);
+    return () => {
+      this.exitListeners.delete(listener);
+    };
+  }
+
+  onError(listener: (error: TerminalErrorStatus | Error) => void): () => void {
+    this.errorListeners.add(listener);
+    return () => {
+      this.errorListeners.delete(listener);
+    };
+  }
+
+  onClose(listener: () => void): () => void {
+    this.closeListeners.add(listener);
+    return () => {
+      this.closeListeners.delete(listener);
+    };
+  }
+
+  sendInput(data: string | ArrayBuffer | ArrayBufferView): void {
+    const payload = encodeTerminalInput(data);
+    this.sendFrame({
+      type: "input",
+      data: payload.data,
+      encoding: payload.encoding,
+    });
+  }
+
+  resize(payload: TerminalResizePayload): void {
+    this.sendFrame({
+      type: "resize",
+      cols: payload.cols,
+      rows: payload.rows,
+    });
+  }
+
+  close(): void {
+    if (this.socket.readyState === WS_READY_STATE_CONNECTING) {
+      this.socket.addEventListener(
+        "open",
+        () => {
+          this.close();
+        },
+        { once: true },
+      );
+      return;
+    }
+
+    if (this.socket.readyState === WS_READY_STATE_OPEN) {
+      if (!this.closeSignalSent) {
+        this.closeSignalSent = true;
+        this.sendFrame({ type: "close" });
+      }
+      this.socket.close();
+      return;
+    }
+
+    if (this.socket.readyState !== WS_READY_STATE_CLOSED) {
+      this.socket.close();
+    }
+  }
+
+  private async handleMessage(data: unknown): Promise<void> {
+    try {
+      if (typeof data === "string") {
+        const frame = parseProcessTerminalServerFrame(data);
+        if (!frame) {
+          this.emitError(new Error("Received invalid terminal control frame."));
+          return;
+        }
+
+        if (frame.type === "ready") {
+          for (const listener of this.readyListeners) {
+            listener(frame);
+          }
+          return;
+        }
+
+        if (frame.type === "exit") {
+          for (const listener of this.exitListeners) {
+            listener(frame);
+          }
+          return;
+        }
+
+        this.emitError(frame);
+        return;
+      }
+
+      const bytes = await decodeTerminalBytes(data);
+      for (const listener of this.dataListeners) {
+        listener(bytes);
+      }
+    } catch (error) {
+      this.emitError(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  private sendFrame(frame: ProcessTerminalClientFrame): void {
+    if (this.socket.readyState !== WS_READY_STATE_OPEN) {
+      return;
+    }
+
+    this.socket.send(JSON.stringify(frame));
+  }
+
+  private emitError(error: TerminalErrorStatus | Error): void {
+    for (const listener of this.errorListeners) {
+      listener(error);
+    }
+  }
+}
+
+const WS_READY_STATE_CONNECTING = 0;
+const WS_READY_STATE_OPEN = 1;
+const WS_READY_STATE_CLOSED = 3;
 
 export class SandboxAgent {
   private readonly baseUrl: string;
@@ -1344,6 +1519,13 @@ export class SandboxAgent {
     );
   }
 
+  connectProcessTerminal(
+    id: string,
+    options: ProcessTerminalSessionOptions = {},
+  ): ProcessTerminalSession {
+    return new ProcessTerminalSession(this.connectProcessTerminalWebSocket(id, options));
+  }
+
   private async getLiveConnection(agent: string): Promise<LiveAcpConnection> {
     await this.awaitHealthy();
 
@@ -1756,6 +1938,91 @@ type RequestOptions = {
 type NormalizedHealthWaitOptions =
   | { enabled: false; timeoutMs?: undefined; signal?: undefined }
   | { enabled: true; timeoutMs?: number; signal?: AbortSignal };
+
+function parseProcessTerminalServerFrame(payload: string): ProcessTerminalServerFrame | null {
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+    if (!isRecord(parsed) || typeof parsed.type !== "string") {
+      return null;
+    }
+
+    if (parsed.type === "ready" && typeof parsed.processId === "string") {
+      return parsed as ProcessTerminalServerFrame;
+    }
+
+    if (
+      parsed.type === "exit" &&
+      (parsed.exitCode === undefined ||
+        parsed.exitCode === null ||
+        typeof parsed.exitCode === "number")
+    ) {
+      return parsed as ProcessTerminalServerFrame;
+    }
+
+    if (parsed.type === "error" && typeof parsed.message === "string") {
+      return parsed as ProcessTerminalServerFrame;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function encodeTerminalInput(
+  data: string | ArrayBuffer | ArrayBufferView,
+): { data: string; encoding?: "base64" } {
+  if (typeof data === "string") {
+    return { data };
+  }
+
+  const bytes = encodeTerminalBytes(data);
+  return {
+    data: bytesToBase64(bytes),
+    encoding: "base64",
+  };
+}
+
+function encodeTerminalBytes(data: ArrayBuffer | ArrayBufferView): Uint8Array {
+  if (data instanceof ArrayBuffer) {
+    return new Uint8Array(data);
+  }
+
+  return new Uint8Array(data.buffer, data.byteOffset, data.byteLength).slice();
+}
+
+async function decodeTerminalBytes(data: unknown): Promise<Uint8Array> {
+  if (data instanceof ArrayBuffer) {
+    return new Uint8Array(data);
+  }
+
+  if (ArrayBuffer.isView(data)) {
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength).slice();
+  }
+
+  if (typeof Blob !== "undefined" && data instanceof Blob) {
+    return new Uint8Array(await data.arrayBuffer());
+  }
+
+  throw new Error(`Unsupported terminal frame payload: ${String(data)}`);
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+
+  if (typeof btoa === "function") {
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    }
+    return btoa(binary);
+  }
+
+  throw new Error("Base64 encoding is not available in this environment.");
+}
 
 /**
  * Auto-select and call `authenticate` based on the agent's advertised auth methods.
