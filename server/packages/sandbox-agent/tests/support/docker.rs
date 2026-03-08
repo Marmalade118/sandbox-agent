@@ -56,6 +56,7 @@ pub struct TestApp {
 #[derive(Default)]
 pub struct TestAppOptions {
     pub env: BTreeMap<String, String>,
+    pub extra_paths: Vec<PathBuf>,
     pub replace_path: bool,
 }
 
@@ -266,6 +267,13 @@ fn build_env(
         let mut custom_path_entries =
             custom_path_entries(layout.install_dir.parent().expect("install base"));
         custom_path_entries.extend(explicit_path_entries());
+        custom_path_entries.extend(
+            options
+                .extra_paths
+                .iter()
+                .filter(|path| path.is_absolute() && path.exists())
+                .cloned(),
+        );
         custom_path_entries.sort();
         custom_path_entries.dedup();
 
@@ -285,7 +293,7 @@ fn build_env(
         if key == "PATH" {
             continue;
         }
-        env.insert(key.clone(), value.clone());
+        env.insert(key.clone(), rewrite_localhost_url(key, value));
     }
 
     env

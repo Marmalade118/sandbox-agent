@@ -17,6 +17,7 @@ async fn v1_desktop_status_reports_install_required_when_dependencies_are_missin
         docker_support::TestAppOptions {
             env,
             replace_path: true,
+            ..Default::default()
         },
         |_| {},
     );

@@ -15,35 +15,6 @@ use serial_test::serial;
 mod docker_support;
 use docker_support::{LiveServer, TestApp};
 
-struct EnvVarGuard {
-    key: &'static str,
-    previous: Option<std::ffi::OsString>,
-}
-
-impl EnvVarGuard {
-    fn set(key: &'static str, value: &str) -> Self {
-        let previous = std::env::var_os(key);
-        std::env::set_var(key, value);
-        Self { key, previous }
-    }
-
-    fn set_os(key: &'static str, value: &std::ffi::OsStr) -> Self {
-        let previous = std::env::var_os(key);
-        std::env::set_var(key, value);
-        Self { key, previous }
-    }
-}
-
-impl Drop for EnvVarGuard {
-    fn drop(&mut self) {
-        if let Some(previous) = self.previous.as_ref() {
-            std::env::set_var(self.key, previous);
-        } else {
-            std::env::remove_var(self.key);
-        }
-    }
-}
-
 fn write_executable(path: &Path, script: &str) {
     fs::write(path, script).expect("write executable");
     #[cfg(unix)]
@@ -92,12 +63,10 @@ fn serve_registry_once(document: Value) -> String {
     let address = listener.local_addr().expect("registry address");
     let body = document.to_string();
 
-    std::thread::spawn(move || {
-        loop {
-            match listener.accept() {
-                Ok((mut stream, _)) => respond_json(&mut stream, &body),
-                Err(_) => break,
-            }
+    std::thread::spawn(move || loop {
+        match listener.accept() {
+            Ok((mut stream, _)) => respond_json(&mut stream, &body),
+            Err(_) => break,
         }
     });
 
