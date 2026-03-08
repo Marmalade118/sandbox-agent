@@ -1,49 +1,20 @@
 use std::fs;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream};
 use std::path::Path;
 use std::time::Duration;
 
-use axum::body::Body;
-use axum::http::{header, HeaderMap, Method, Request, StatusCode};
-use axum::Router;
 use futures::StreamExt;
-use http_body_util::BodyExt;
-use sandbox_agent::router::{build_router, AppState, AuthConfig};
-use sandbox_agent_agent_management::agents::AgentManager;
+use reqwest::header::{self, HeaderMap, HeaderName, HeaderValue};
+use reqwest::{Method, StatusCode};
+use sandbox_agent::router::AuthConfig;
 use serde_json::{json, Value};
 use serial_test::serial;
 use tempfile::TempDir;
-use tokio::sync::oneshot;
-use tokio::task::JoinHandle;
-use tower::util::ServiceExt;
 
-struct TestApp {
-    app: Router,
-    install_dir: TempDir,
-}
-
-impl TestApp {
-    fn new(auth: AuthConfig) -> Self {
-        Self::with_setup(auth, |_| {})
-    }
-
-    fn with_setup<F>(auth: AuthConfig, setup: F) -> Self
-    where
-        F: FnOnce(&Path),
-    {
-        let install_dir = tempfile::tempdir().expect("create temp install dir");
-        setup(install_dir.path());
-        let manager = AgentManager::new(install_dir.path()).expect("create agent manager");
-        let state = AppState::new(auth, manager);
-        let app = build_router(state);
-        Self { app, install_dir }
-    }
-
-    fn install_path(&self) -> &Path {
-        self.install_dir.path()
-    }
-}
+#[path = "support/docker.rs"]
+mod docker_support;
+use docker_support::{LiveServer, TestApp};
 
 struct EnvVarGuard {
     key: &'static str,
@@ -57,56 +28,6 @@ struct FakeDesktopEnv {
     _assume_linux: EnvVarGuard,
     _display_num: EnvVarGuard,
     _fake_state_dir: EnvVarGuard,
-}
-
-struct LiveServer {
-    address: SocketAddr,
-    shutdown_tx: Option<oneshot::Sender<()>>,
-    task: JoinHandle<()>,
-}
-
-impl LiveServer {
-    async fn spawn(app: Router) -> Self {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind live server");
-        let address = listener.local_addr().expect("live server address");
-        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-
-        let task = tokio::spawn(async move {
-            let server =
-                axum::serve(listener, app.into_make_service()).with_graceful_shutdown(async {
-                    let _ = shutdown_rx.await;
-                });
-
-            let _ = server.await;
-        });
-
-        Self {
-            address,
-            shutdown_tx: Some(shutdown_tx),
-            task,
-        }
-    }
-
-    fn http_url(&self, path: &str) -> String {
-        format!("http://{}{}", self.address, path)
-    }
-
-    fn ws_url(&self, path: &str) -> String {
-        format!("ws://{}{}", self.address, path)
-    }
-
-    async fn shutdown(mut self) {
-        if let Some(shutdown_tx) = self.shutdown_tx.take() {
-            let _ = shutdown_tx.send(());
-        }
-
-        let _ = tokio::time::timeout(Duration::from_secs(3), async {
-            let _ = self.task.await;
-        })
-        .await;
-    }
 }
 
 impl EnvVarGuard {
@@ -352,70 +273,64 @@ fn respond_json(stream: &mut TcpStream, body: &str) {
 }
 
 async fn send_request(
-    app: &Router,
+    app: &docker_support::DockerApp,
     method: Method,
     uri: &str,
     body: Option<Value>,
     headers: &[(&str, &str)],
 ) -> (StatusCode, HeaderMap, Vec<u8>) {
-    let mut builder = Request::builder().method(method).uri(uri);
+    let client = reqwest::Client::new();
+    let mut builder = client.request(method, app.http_url(uri));
     for (name, value) in headers {
-        builder = builder.header(*name, *value);
+        let header_name = HeaderName::from_bytes(name.as_bytes()).expect("header name");
+        let header_value = HeaderValue::from_str(value).expect("header value");
+        builder = builder.header(header_name, header_value);
     }
 
-    let request_body = if let Some(body) = body {
-        builder = builder.header(header::CONTENT_TYPE, "application/json");
-        Body::from(body.to_string())
+    let response = if let Some(body) = body {
+        builder
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(body.to_string())
+            .send()
+            .await
+            .expect("request handled")
     } else {
-        Body::empty()
+        builder.send().await.expect("request handled")
     };
-
-    let request = builder.body(request_body).expect("build request");
-    let response = app.clone().oneshot(request).await.expect("request handled");
     let status = response.status();
     let headers = response.headers().clone();
-    let bytes = response
-        .into_body()
-        .collect()
-        .await
-        .expect("collect body")
-        .to_bytes();
+    let bytes = response.bytes().await.expect("collect body");
 
     (status, headers, bytes.to_vec())
 }
 
 async fn send_request_raw(
-    app: &Router,
+    app: &docker_support::DockerApp,
     method: Method,
     uri: &str,
     body: Option<Vec<u8>>,
     headers: &[(&str, &str)],
     content_type: Option<&str>,
 ) -> (StatusCode, HeaderMap, Vec<u8>) {
-    let mut builder = Request::builder().method(method).uri(uri);
+    let client = reqwest::Client::new();
+    let mut builder = client.request(method, app.http_url(uri));
     for (name, value) in headers {
-        builder = builder.header(*name, *value);
+        let header_name = HeaderName::from_bytes(name.as_bytes()).expect("header name");
+        let header_value = HeaderValue::from_str(value).expect("header value");
+        builder = builder.header(header_name, header_value);
     }
 
-    let request_body = if let Some(body) = body {
+    let response = if let Some(body) = body {
         if let Some(content_type) = content_type {
             builder = builder.header(header::CONTENT_TYPE, content_type);
         }
-        Body::from(body)
+        builder.body(body).send().await.expect("request handled")
     } else {
-        Body::empty()
+        builder.send().await.expect("request handled")
     };
-
-    let request = builder.body(request_body).expect("build request");
-    let response = app.clone().oneshot(request).await.expect("request handled");
     let status = response.status();
     let headers = response.headers().clone();
-    let bytes = response
-        .into_body()
-        .collect()
-        .await
-        .expect("collect body")
-        .to_bytes();
+    let bytes = response.bytes().await.expect("collect body");
 
     (status, headers, bytes.to_vec())
 }
@@ -440,7 +355,7 @@ fn initialize_payload() -> Value {
     })
 }
 
-async fn bootstrap_server(app: &Router, server_id: &str, agent: &str) {
+async fn bootstrap_server(app: &docker_support::DockerApp, server_id: &str, agent: &str) {
     let initialize = initialize_payload();
     let (status, _, _body) = send_request(
         app,
@@ -453,17 +368,17 @@ async fn bootstrap_server(app: &Router, server_id: &str, agent: &str) {
     assert_eq!(status, StatusCode::OK);
 }
 
-async fn read_first_sse_data(app: &Router, server_id: &str) -> String {
-    let request = Request::builder()
-        .method(Method::GET)
-        .uri(format!("/v1/acp/{server_id}"))
-        .body(Body::empty())
-        .expect("build request");
-
-    let response = app.clone().oneshot(request).await.expect("sse response");
+async fn read_first_sse_data(app: &docker_support::DockerApp, server_id: &str) -> String {
+    let client = reqwest::Client::new();
+    let response = client
+        .get(app.http_url(&format!("/v1/acp/{server_id}")))
+        .header("accept", "text/event-stream")
+        .send()
+        .await
+        .expect("sse response");
     assert_eq!(response.status(), StatusCode::OK);
 
-    let mut stream = response.into_body().into_data_stream();
+    let mut stream = response.bytes_stream();
     tokio::time::timeout(Duration::from_secs(5), async move {
         while let Some(chunk) = stream.next().await {
             let bytes = chunk.expect("stream chunk");
@@ -479,21 +394,21 @@ async fn read_first_sse_data(app: &Router, server_id: &str) -> String {
 }
 
 async fn read_first_sse_data_with_last_id(
-    app: &Router,
+    app: &docker_support::DockerApp,
     server_id: &str,
     last_event_id: u64,
 ) -> String {
-    let request = Request::builder()
-        .method(Method::GET)
-        .uri(format!("/v1/acp/{server_id}"))
+    let client = reqwest::Client::new();
+    let response = client
+        .get(app.http_url(&format!("/v1/acp/{server_id}")))
+        .header("accept", "text/event-stream")
         .header("last-event-id", last_event_id.to_string())
-        .body(Body::empty())
-        .expect("build request");
-
-    let response = app.clone().oneshot(request).await.expect("sse response");
+        .send()
+        .await
+        .expect("sse response");
     assert_eq!(response.status(), StatusCode::OK);
 
-    let mut stream = response.into_body().into_data_stream();
+    let mut stream = response.bytes_stream();
     tokio::time::timeout(Duration::from_secs(5), async move {
         while let Some(chunk) = stream.next().await {
             let bytes = chunk.expect("stream chunk");

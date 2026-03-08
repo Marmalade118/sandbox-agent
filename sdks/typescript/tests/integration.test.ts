@@ -1,49 +1,21 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { existsSync } from "node:fs";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import {
   InMemorySessionPersistDriver,
   SandboxAgent,
   type SessionEvent,
 } from "../src/index.ts";
-import { spawnSandboxAgent, isNodeRuntime, type SandboxAgentSpawnHandle } from "../src/spawn.ts";
+import { isNodeRuntime } from "../src/spawn.ts";
+import {
+  createDockerTestLayout,
+  disposeDockerTestLayout,
+  startDockerSandboxAgent,
+  type DockerSandboxAgentHandle,
+} from "./helpers/docker.ts";
 import { prepareMockAgentDataHome } from "./helpers/mock-agent.ts";
 import WebSocket from "ws";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-function findBinary(): string | null {
-  if (process.env.SANDBOX_AGENT_BIN) {
-    return process.env.SANDBOX_AGENT_BIN;
-  }
-
-  const cargoPaths = [
-    resolve(__dirname, "../../../target/debug/sandbox-agent"),
-    resolve(__dirname, "../../../target/release/sandbox-agent"),
-  ];
-
-  for (const p of cargoPaths) {
-    if (existsSync(p)) {
-      return p;
-    }
-  }
-
-  return null;
-}
-
-const BINARY_PATH = findBinary();
-if (!BINARY_PATH) {
-  throw new Error(
-    "sandbox-agent binary not found. Build it (cargo build -p sandbox-agent) or set SANDBOX_AGENT_BIN.",
-  );
-}
-if (!process.env.SANDBOX_AGENT_BIN) {
-  process.env.SANDBOX_AGENT_BIN = BINARY_PATH;
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -145,7 +117,7 @@ function decodeProcessLogData(data: string, encoding: string): string {
 
 function nodeCommand(source: string): { command: string; args: string[] } {
   return {
-    command: process.execPath,
+    command: "node",
     args: ["-e", source],
   };
 }
@@ -293,32 +265,29 @@ esac
 }
 
 describe("Integration: TypeScript SDK flat session API", () => {
-  let handle: SandboxAgentSpawnHandle;
+  let handle: DockerSandboxAgentHandle;
   let baseUrl: string;
   let token: string;
-  let dataHome: string;
-  let desktopHome: string;
+  let layout: ReturnType<typeof createDockerTestLayout>;
 
-  beforeAll(async () => {
-    dataHome = mkdtempSync(join(tmpdir(), "sdk-integration-"));
-    desktopHome = mkdtempSync(join(tmpdir(), "sdk-desktop-"));
-    const agentEnv = prepareMockAgentDataHome(dataHome);
-    const desktopEnv = prepareFakeDesktopEnv(desktopHome);
+  beforeEach(async () => {
+    layout = createDockerTestLayout();
+    prepareMockAgentDataHome(layout.xdgDataHome);
+    const desktopEnv = prepareFakeDesktopEnv(layout.rootDir);
 
-    handle = await spawnSandboxAgent({
-      enabled: true,
-      log: "silent",
+    handle = await startDockerSandboxAgent(layout, {
       timeoutMs: 30000,
-      env: { ...agentEnv, ...desktopEnv },
+      env: desktopEnv,
     });
     baseUrl = handle.baseUrl;
     token = handle.token;
   });
 
-  afterAll(async () => {
-    await handle.dispose();
-    rmSync(dataHome, { recursive: true, force: true });
-    rmSync(desktopHome, { recursive: true, force: true });
+  afterEach(async () => {
+    await handle?.dispose?.();
+    if (layout) {
+      disposeDockerTestLayout(layout);
+    }
   });
 
   it("detects Node.js runtime", () => {
@@ -376,11 +345,12 @@ describe("Integration: TypeScript SDK flat session API", () => {
       token,
     });
 
-    const directory = mkdtempSync(join(tmpdir(), "sdk-fs-"));
+    const directory = join(layout.rootDir, "fs-test");
     const nestedDir = join(directory, "nested");
     const filePath = join(directory, "notes.txt");
     const movedPath = join(directory, "notes-moved.txt");
     const uploadDir = join(directory, "uploaded");
+    mkdirSync(directory, { recursive: true });
 
     try {
       const listedAgents = await sdk.listAgents({ config: true, noCache: true });
@@ -777,7 +747,9 @@ describe("Integration: TypeScript SDK flat session API", () => {
       token,
     });
 
-    const directory = mkdtempSync(join(tmpdir(), "sdk-config-"));
+    const directory = join(layout.rootDir, "config-test");
+
+    mkdirSync(directory, { recursive: true });
 
     const mcpConfig = {
       type: "local" as const,

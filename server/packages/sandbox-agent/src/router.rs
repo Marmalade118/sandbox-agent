@@ -190,13 +190,22 @@ pub fn build_router_with_state(shared: Arc<AppState>) -> (Router, Arc<AppState>)
             "/desktop/screenshot/region",
             get(get_v1_desktop_screenshot_region),
         )
-        .route("/desktop/mouse/position", get(get_v1_desktop_mouse_position))
+        .route(
+            "/desktop/mouse/position",
+            get(get_v1_desktop_mouse_position),
+        )
         .route("/desktop/mouse/move", post(post_v1_desktop_mouse_move))
         .route("/desktop/mouse/click", post(post_v1_desktop_mouse_click))
         .route("/desktop/mouse/drag", post(post_v1_desktop_mouse_drag))
         .route("/desktop/mouse/scroll", post(post_v1_desktop_mouse_scroll))
-        .route("/desktop/keyboard/type", post(post_v1_desktop_keyboard_type))
-        .route("/desktop/keyboard/press", post(post_v1_desktop_keyboard_press))
+        .route(
+            "/desktop/keyboard/type",
+            post(post_v1_desktop_keyboard_type),
+        )
+        .route(
+            "/desktop/keyboard/press",
+            post(post_v1_desktop_keyboard_press),
+        )
         .route("/desktop/display/info", get(get_v1_desktop_display_info))
         .route("/agents", get(get_v1_agents))
         .route("/agents/:agent", get(get_v1_agent))

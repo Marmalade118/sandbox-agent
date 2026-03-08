@@ -10,14 +10,8 @@ async fn v1_desktop_status_reports_install_required_when_dependencies_are_missin
 
     let test_app = TestApp::new(AuthConfig::disabled());
 
-    let (status, _, body) = send_request(
-        &test_app.app,
-        Method::GET,
-        "/v1/desktop/status",
-        None,
-        &[],
-    )
-    .await;
+    let (status, _, body) =
+        send_request(&test_app.app, Method::GET, "/v1/desktop/status", None, &[]).await;
 
     assert_eq!(status, StatusCode::OK);
     let parsed = parse_json(&body);
@@ -59,7 +53,10 @@ async fn v1_desktop_lifecycle_and_actions_work_with_fake_runtime() {
     );
     let parsed = parse_json(&body);
     assert_eq!(parsed["state"], "active");
-    let display = parsed["display"].as_str().expect("desktop display").to_string();
+    let display = parsed["display"]
+        .as_str()
+        .expect("desktop display")
+        .to_string();
     assert!(display.starts_with(':'));
     assert_eq!(parsed["resolution"]["width"], 1440);
     assert_eq!(parsed["resolution"]["height"], 900);
@@ -209,14 +206,8 @@ async fn v1_desktop_lifecycle_and_actions_work_with_fake_runtime() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(parse_json(&body)["ok"], true);
 
-    let (status, _, body) = send_request(
-        &test_app.app,
-        Method::POST,
-        "/v1/desktop/stop",
-        None,
-        &[],
-    )
-    .await;
+    let (status, _, body) =
+        send_request(&test_app.app, Method::POST, "/v1/desktop/stop", None, &[]).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(parse_json(&body)["state"], "inactive");
 }

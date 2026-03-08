@@ -11,9 +11,7 @@ mod build_version {
     include!(concat!(env!("OUT_DIR"), "/version.rs"));
 }
 
-use crate::desktop_install::{
-    install_desktop, DesktopInstallRequest, DesktopPackageManager,
-};
+use crate::desktop_install::{install_desktop, DesktopInstallRequest, DesktopPackageManager};
 use crate::router::{
     build_router_with_state, shutdown_servers, AppState, AuthConfig, BrandingMode,
 };

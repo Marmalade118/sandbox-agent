@@ -16,7 +16,12 @@ pub struct DesktopProblem {
 
 impl DesktopProblem {
     pub fn unsupported_platform(message: impl Into<String>) -> Self {
-        Self::new(501, "Desktop Unsupported", "desktop_unsupported_platform", message)
+        Self::new(
+            501,
+            "Desktop Unsupported",
+            "desktop_unsupported_platform",
+            message,
+        )
     }
 
     pub fn dependencies_missing(
@@ -44,11 +49,21 @@ impl DesktopProblem {
     }
 
     pub fn runtime_inactive(message: impl Into<String>) -> Self {
-        Self::new(409, "Desktop Runtime Inactive", "desktop_runtime_inactive", message)
+        Self::new(
+            409,
+            "Desktop Runtime Inactive",
+            "desktop_runtime_inactive",
+            message,
+        )
     }
 
     pub fn runtime_starting(message: impl Into<String>) -> Self {
-        Self::new(409, "Desktop Runtime Starting", "desktop_runtime_starting", message)
+        Self::new(
+            409,
+            "Desktop Runtime Starting",
+            "desktop_runtime_starting",
+            message,
+        )
     }
 
     pub fn runtime_failed(
@@ -56,18 +71,36 @@ impl DesktopProblem {
         install_command: Option<String>,
         processes: Vec<DesktopProcessInfo>,
     ) -> Self {
-        Self::new(503, "Desktop Runtime Failed", "desktop_runtime_failed", message)
-            .with_install_command(install_command)
-            .with_processes(processes)
+        Self::new(
+            503,
+            "Desktop Runtime Failed",
+            "desktop_runtime_failed",
+            message,
+        )
+        .with_install_command(install_command)
+        .with_processes(processes)
     }
 
     pub fn invalid_action(message: impl Into<String>) -> Self {
-        Self::new(400, "Desktop Invalid Action", "desktop_invalid_action", message)
+        Self::new(
+            400,
+            "Desktop Invalid Action",
+            "desktop_invalid_action",
+            message,
+        )
     }
 
-    pub fn screenshot_failed(message: impl Into<String>, processes: Vec<DesktopProcessInfo>) -> Self {
-        Self::new(502, "Desktop Screenshot Failed", "desktop_screenshot_failed", message)
-            .with_processes(processes)
+    pub fn screenshot_failed(
+        message: impl Into<String>,
+        processes: Vec<DesktopProcessInfo>,
+    ) -> Self {
+        Self::new(
+            502,
+            "Desktop Screenshot Failed",
+            "desktop_screenshot_failed",
+            message,
+        )
+        .with_processes(processes)
     }
 
     pub fn input_failed(message: impl Into<String>, processes: Vec<DesktopProcessInfo>) -> Self {
@@ -97,10 +130,7 @@ impl DesktopProblem {
             );
         }
         if !self.processes.is_empty() {
-            extensions.insert(
-                "processes".to_string(),
-                json!(self.processes),
-            );
+            extensions.insert("processes".to_string(), json!(self.processes));
         }
 
         ProblemDetails {

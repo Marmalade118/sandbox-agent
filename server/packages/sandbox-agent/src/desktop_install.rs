@@ -22,7 +22,9 @@ pub struct DesktopInstallRequest {
 
 pub fn install_desktop(request: DesktopInstallRequest) -> Result<(), String> {
     if std::env::consts::OS != "linux" {
-        return Err("desktop installation is only supported on Linux hosts and sandboxes".to_string());
+        return Err(
+            "desktop installation is only supported on Linux hosts and sandboxes".to_string(),
+        );
     }
 
     let package_manager = match request.package_manager {
@@ -47,7 +49,10 @@ pub fn install_desktop(request: DesktopInstallRequest) -> Result<(), String> {
         println!("  - {package}");
     }
     println!("Install command:");
-    println!("  {}", render_install_command(package_manager, used_sudo, &packages));
+    println!(
+        "  {}",
+        render_install_command(package_manager, used_sudo, &packages)
+    );
 
     if request.print_only {
         return Ok(());
@@ -76,10 +81,7 @@ fn detect_package_manager() -> Option<DesktopPackageManager> {
     None
 }
 
-fn desktop_packages(
-    package_manager: DesktopPackageManager,
-    no_fonts: bool,
-) -> Vec<String> {
+fn desktop_packages(package_manager: DesktopPackageManager, no_fonts: bool) -> Vec<String> {
     let mut packages = match package_manager {
         DesktopPackageManager::Apt => vec![
             "xvfb",

@@ -177,19 +177,22 @@ async fn lazy_install_runs_on_first_bootstrap() {
     }));
 
     let _registry = EnvVarGuard::set("SANDBOX_AGENT_ACP_REGISTRY_URL", &registry_url);
+    let helper_bin_root = tempfile::tempdir().expect("helper bin tempdir");
+    let helper_bin = helper_bin_root.path().join("bin");
+    fs::create_dir_all(&helper_bin).expect("create helper bin dir");
+    write_fake_npm(&helper_bin.join("npm"));
+
+    let original_path = std::env::var_os("PATH").unwrap_or_default();
+    let mut paths = vec![helper_bin.clone()];
+    paths.extend(std::env::split_paths(&original_path));
+    let merged_path = std::env::join_paths(paths).expect("join PATH");
+    let _path_guard = EnvVarGuard::set_os("PATH", merged_path.as_os_str());
+
     let test_app = TestApp::with_setup(AuthConfig::disabled(), |install_path| {
         fs::create_dir_all(install_path.join("agent_processes"))
             .expect("create agent processes dir");
         write_executable(&install_path.join("codex"), "#!/usr/bin/env sh\nexit 0\n");
-        fs::create_dir_all(install_path.join("bin")).expect("create bin dir");
-        write_fake_npm(&install_path.join("bin").join("npm"));
     });
-
-    let original_path = std::env::var_os("PATH").unwrap_or_default();
-    let mut paths = vec![test_app.install_path().join("bin")];
-    paths.extend(std::env::split_paths(&original_path));
-    let merged_path = std::env::join_paths(paths).expect("join PATH");
-    let _path_guard = EnvVarGuard::set_os("PATH", merged_path.as_os_str());
 
     let (status, _, _) = send_request(
         &test_app.app,
