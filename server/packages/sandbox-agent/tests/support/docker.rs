@@ -240,8 +240,11 @@ fn build_env(layout: &TestLayout, auth: &AuthConfig) -> BTreeMap<String, String>
         env.insert("SANDBOX_AGENT_TEST_AUTH_TOKEN".to_string(), token.clone());
     }
 
-    let custom_path_entries =
-        custom_path_entries(layout.install_dir.parent().expect("install base"));
+    let mut custom_path_entries = custom_path_entries(layout.install_dir.parent().expect("install base"));
+    custom_path_entries.extend(explicit_path_entries());
+    custom_path_entries.sort();
+    custom_path_entries.dedup();
+
     if custom_path_entries.is_empty() {
         env.insert("PATH".to_string(), DEFAULT_PATH.to_string());
     } else {
@@ -438,6 +441,18 @@ fn custom_path_entries(root: &Path) -> Vec<PathBuf> {
     }
     entries.sort();
     entries.dedup();
+    entries
+}
+
+fn explicit_path_entries() -> Vec<PathBuf> {
+    let mut entries = Vec::new();
+    if let Some(value) = std::env::var_os("SANDBOX_AGENT_TEST_EXTRA_PATHS") {
+        for entry in std::env::split_paths(&value) {
+            if entry.is_absolute() && entry.exists() {
+                entries.push(entry);
+            }
+        }
+    }
     entries
 }
 

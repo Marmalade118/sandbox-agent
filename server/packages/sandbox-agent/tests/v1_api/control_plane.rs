@@ -187,6 +187,8 @@ async fn lazy_install_runs_on_first_bootstrap() {
     paths.extend(std::env::split_paths(&original_path));
     let merged_path = std::env::join_paths(paths).expect("join PATH");
     let _path_guard = EnvVarGuard::set_os("PATH", merged_path.as_os_str());
+    let _extra_paths_guard =
+        EnvVarGuard::set_os("SANDBOX_AGENT_TEST_EXTRA_PATHS", helper_bin.as_os_str());
 
     let test_app = TestApp::with_setup(AuthConfig::disabled(), |install_path| {
         fs::create_dir_all(install_path.join("agent_processes"))
