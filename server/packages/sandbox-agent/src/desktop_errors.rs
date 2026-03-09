@@ -29,7 +29,7 @@ impl DesktopProblem {
         install_command: Option<String>,
         processes: Vec<DesktopProcessInfo>,
     ) -> Self {
-        let message = if missing_dependencies.is_empty() {
+        let mut message = if missing_dependencies.is_empty() {
             "Desktop dependencies are not installed".to_string()
         } else {
             format!(
@@ -37,6 +37,11 @@ impl DesktopProblem {
                 missing_dependencies.join(", ")
             )
         };
+        if let Some(command) = install_command.as_ref() {
+            message.push_str(&format!(
+                ". Run `{command}` to install them, or install the required tools manually."
+            ));
+        }
         Self::new(
             503,
             "Desktop Dependencies Missing",
@@ -184,5 +189,29 @@ impl DesktopProblem {
     fn with_processes(mut self, processes: Vec<DesktopProcessInfo>) -> Self {
         self.processes = processes;
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dependencies_missing_detail_includes_install_command() {
+        let problem = DesktopProblem::dependencies_missing(
+            vec!["Xvfb".to_string(), "openbox".to_string()],
+            Some("sandbox-agent install desktop --yes".to_string()),
+            Vec::new(),
+        );
+        let details = problem.to_problem_details();
+        let detail = details.detail.expect("detail");
+        assert!(detail.contains("Desktop dependencies are not installed: Xvfb, openbox"));
+        assert!(detail.contains("sandbox-agent install desktop --yes"));
+        assert_eq!(
+            details.extensions.get("installCommand"),
+            Some(&Value::String(
+                "sandbox-agent install desktop --yes".to_string()
+            ))
+        );
     }
 }

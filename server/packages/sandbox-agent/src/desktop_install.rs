@@ -5,6 +5,11 @@ use std::process::Command as ProcessCommand;
 
 use clap::ValueEnum;
 
+const AUTOMATIC_INSTALL_SUPPORTED_DISTROS: &str =
+    "Automatic desktop dependency installation is supported on Debian/Ubuntu (apt), Fedora/RHEL (dnf), and Alpine (apk).";
+const AUTOMATIC_INSTALL_UNSUPPORTED_ENVS: &str =
+    "Automatic installation is not supported on macOS, Windows, or Linux distributions without apt, dnf, or apk.";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum DesktopPackageManager {
     Apt,
@@ -20,17 +25,29 @@ pub struct DesktopInstallRequest {
     pub no_fonts: bool,
 }
 
+pub(crate) fn desktop_platform_support_message() -> String {
+    format!("Desktop APIs are only supported on Linux. {AUTOMATIC_INSTALL_SUPPORTED_DISTROS}")
+}
+
+fn linux_install_support_message() -> String {
+    format!("{AUTOMATIC_INSTALL_SUPPORTED_DISTROS} {AUTOMATIC_INSTALL_UNSUPPORTED_ENVS}")
+}
+
 pub fn install_desktop(request: DesktopInstallRequest) -> Result<(), String> {
     if std::env::consts::OS != "linux" {
-        return Err(
-            "desktop installation is only supported on Linux hosts and sandboxes".to_string(),
-        );
+        return Err(format!(
+            "desktop installation is only supported on Linux. {}",
+            linux_install_support_message()
+        ));
     }
 
     let package_manager = match request.package_manager {
         Some(value) => value,
         None => detect_package_manager().ok_or_else(|| {
-            "could not detect a supported package manager (expected apt, dnf, or apk)".to_string()
+            format!(
+                "could not detect a supported package manager. {} Install the desktop dependencies manually on this distribution.",
+                linux_install_support_message()
+            )
         })?,
     };
 
@@ -267,6 +284,26 @@ impl fmt::Display for DesktopPackageManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn desktop_platform_support_message_mentions_linux_and_supported_distros() {
+        let message = desktop_platform_support_message();
+        assert!(message.contains("only supported on Linux"));
+        assert!(message.contains("Debian/Ubuntu (apt)"));
+        assert!(message.contains("Fedora/RHEL (dnf)"));
+        assert!(message.contains("Alpine (apk)"));
+    }
+
+    #[test]
+    fn linux_install_support_message_mentions_unsupported_environments() {
+        let message = linux_install_support_message();
+        assert!(message.contains("Debian/Ubuntu (apt)"));
+        assert!(message.contains("Fedora/RHEL (dnf)"));
+        assert!(message.contains("Alpine (apk)"));
+        assert!(message.contains("macOS"));
+        assert!(message.contains("Windows"));
+        assert!(message.contains("without apt, dnf, or apk"));
+    }
 
     #[test]
     fn desktop_packages_support_no_fonts() {

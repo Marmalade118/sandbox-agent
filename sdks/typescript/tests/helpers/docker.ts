@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../../../..");
-const ENSURE_IMAGE = resolve(REPO_ROOT, "scripts/test-rig/ensure-image.sh");
 const CONTAINER_PORT = 3000;
 const DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+const DEFAULT_IMAGE_TAG = "sandbox-agent-test:dev";
 const STANDARD_PATHS = new Set([
   "/usr/local/sbin",
   "/usr/local/bin",
@@ -184,11 +184,22 @@ function ensureImage(): string {
     return cachedImage;
   }
 
-  cachedImage = execFileSync("bash", [ENSURE_IMAGE], {
-    cwd: REPO_ROOT,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
+  cachedImage = process.env.SANDBOX_AGENT_TEST_IMAGE ?? DEFAULT_IMAGE_TAG;
+  execFileSync(
+    "docker",
+    [
+      "build",
+      "--tag",
+      cachedImage,
+      "--file",
+      resolve(REPO_ROOT, "docker/test-agent/Dockerfile"),
+      REPO_ROOT,
+    ],
+    {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "ignore", "pipe"],
+    },
+  );
   return cachedImage;
 }
 

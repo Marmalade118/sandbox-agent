@@ -10,10 +10,12 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use sandbox_agent::router::AuthConfig;
+use serial_test::serial;
 use tempfile::TempDir;
 
 const CONTAINER_PORT: u16 = 3000;
 const DEFAULT_PATH: &str = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+const DEFAULT_IMAGE_TAG: &str = "sandbox-agent-test:dev";
 const STANDARD_PATHS: &[&str] = &[
     "/usr/local/sbin",
     "/usr/local/bin",
@@ -183,24 +185,26 @@ fn ensure_test_image() -> String {
     IMAGE_TAG
         .get_or_init(|| {
             let repo_root = repo_root();
-            let script = repo_root
-                .join("scripts")
-                .join("test-rig")
-                .join("ensure-image.sh");
-            let output = Command::new("/bin/bash")
-                .arg(&script)
+            let image_tag = std::env::var("SANDBOX_AGENT_TEST_IMAGE")
+                .unwrap_or_else(|_| DEFAULT_IMAGE_TAG.to_string());
+            let output = Command::new(docker_bin())
+                .args(["build", "--tag", &image_tag, "--file"])
+                .arg(
+                    repo_root
+                        .join("docker")
+                        .join("test-agent")
+                        .join("Dockerfile"),
+                )
+                .arg(&repo_root)
                 .output()
-                .expect("run ensure-image.sh");
+                .expect("build sandbox-agent test image");
             if !output.status.success() {
                 panic!(
                     "failed to build sandbox-agent test image: {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             }
-            String::from_utf8(output.stdout)
-                .expect("image tag utf8")
-                .trim()
-                .to_string()
+            image_tag
         })
         .clone()
 }
@@ -235,12 +239,6 @@ fn build_env(
         "LOCALAPPDATA".to_string(),
         layout.local_appdata.to_string_lossy().to_string(),
     );
-    if let Some(value) = std::env::var_os("XDG_STATE_HOME") {
-        env.insert(
-            "XDG_STATE_HOME".to_string(),
-            PathBuf::from(value).to_string_lossy().to_string(),
-        );
-    }
 
     for (key, value) in std::env::vars() {
         if key == "PATH" {
@@ -548,4 +546,48 @@ fn docker_bin() -> &'static Path {
             PathBuf::from("docker")
         })
         .as_path()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct EnvVarGuard {
+        key: &'static str,
+        old: Option<std::ffi::OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: &Path) -> Self {
+            let old = std::env::var_os(key);
+            std::env::set_var(key, value);
+            Self { key, old }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match self.old.as_ref() {
+                Some(value) => std::env::set_var(self.key, value),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn build_env_keeps_test_local_xdg_state_home() {
+        let root = tempfile::tempdir().expect("create docker support tempdir");
+        let host_state = tempfile::tempdir().expect("create host xdg state tempdir");
+        let _guard = EnvVarGuard::set("XDG_STATE_HOME", host_state.path());
+
+        let layout = TestLayout::new(root.path());
+        layout.create();
+
+        let env = build_env(&layout, &AuthConfig::disabled(), &TestAppOptions::default());
+        assert_eq!(
+            env.get("XDG_STATE_HOME"),
+            Some(&layout.xdg_state_home.to_string_lossy().to_string())
+        );
+    }
 }

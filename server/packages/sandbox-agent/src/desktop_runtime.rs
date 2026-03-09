@@ -9,6 +9,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
 use crate::desktop_errors::DesktopProblem;
+use crate::desktop_install::desktop_platform_support_message;
 use crate::desktop_types::{
     DesktopActionResponse, DesktopDisplayInfoResponse, DesktopErrorInfo,
     DesktopKeyboardPressRequest, DesktopKeyboardTypeRequest, DesktopMouseButton,
@@ -138,9 +139,7 @@ impl DesktopRuntime {
         let mut state = self.inner.lock().await;
 
         if !self.platform_supported() {
-            let problem = DesktopProblem::unsupported_platform(
-                "Desktop APIs are only supported on Linux hosts and sandboxes",
-            );
+            let problem = DesktopProblem::unsupported_platform(desktop_platform_support_message());
             self.record_problem_locked(&mut state, &problem);
             state.state = DesktopState::Failed;
             return Err(problem);
@@ -182,6 +181,7 @@ impl DesktopRuntime {
             height,
             dpi: Some(dpi),
         };
+        let environment = self.base_environment(&display)?;
 
         state.state = DesktopState::Starting;
         state.display_num = display_num;
@@ -189,13 +189,21 @@ impl DesktopRuntime {
         state.resolution = Some(resolution.clone());
         state.started_at = None;
         state.last_error = None;
-        state.environment = self.base_environment(&display)?;
+        state.environment = environment;
         state.install_command = None;
 
-        self.start_dbus_locked(&mut state).await?;
-        self.start_xvfb_locked(&mut state, &resolution).await?;
-        self.wait_for_socket(display_num).await?;
-        self.start_openbox_locked(&mut state).await?;
+        if let Err(problem) = self.start_dbus_locked(&mut state).await {
+            return Err(self.fail_start_locked(&mut state, problem).await);
+        }
+        if let Err(problem) = self.start_xvfb_locked(&mut state, &resolution).await {
+            return Err(self.fail_start_locked(&mut state, problem).await);
+        }
+        if let Err(problem) = self.wait_for_socket(display_num).await {
+            return Err(self.fail_start_locked(&mut state, problem).await);
+        }
+        if let Err(problem) = self.start_openbox_locked(&mut state).await {
+            return Err(self.fail_start_locked(&mut state, problem).await);
+        }
 
         let ready = DesktopReadyContext {
             display,
@@ -203,23 +211,15 @@ impl DesktopRuntime {
             resolution,
         };
 
-        let display_info = self
-            .query_display_info_locked(&state, &ready)
-            .await
-            .map_err(|problem| {
-                self.record_problem_locked(&mut state, &problem);
-                state.state = DesktopState::Failed;
-                problem
-            })?;
+        let display_info = match self.query_display_info_locked(&state, &ready).await {
+            Ok(display_info) => display_info,
+            Err(problem) => return Err(self.fail_start_locked(&mut state, problem).await),
+        };
         state.resolution = Some(display_info.resolution.clone());
 
-        self.capture_screenshot_locked(&state, None)
-            .await
-            .map_err(|problem| {
-                self.record_problem_locked(&mut state, &problem);
-                state.state = DesktopState::Failed;
-                problem
-            })?;
+        if let Err(problem) = self.capture_screenshot_locked(&state, None).await {
+            return Err(self.fail_start_locked(&mut state, problem).await);
+        }
 
         state.state = DesktopState::Active;
         state.started_at = Some(chrono::Utc::now().to_rfc3339());
@@ -403,12 +403,7 @@ impl DesktopRuntime {
 
         let mut state = self.inner.lock().await;
         let ready = self.ensure_ready_locked(&mut state).await?;
-        let args = vec![
-            "type".to_string(),
-            "--delay".to_string(),
-            request.delay_ms.unwrap_or(10).to_string(),
-            request.text,
-        ];
+        let args = type_text_args(request.text, request.delay_ms.unwrap_or(10));
         self.run_input_command_locked(&state, &ready, args).await?;
         Ok(DesktopActionResponse { ok: true })
     }
@@ -423,7 +418,7 @@ impl DesktopRuntime {
 
         let mut state = self.inner.lock().await;
         let ready = self.ensure_ready_locked(&mut state).await?;
-        let args = vec!["key".to_string(), request.key];
+        let args = press_key_args(request.key);
         self.run_input_command_locked(&state, &ready, args).await?;
         Ok(DesktopActionResponse { ok: true })
     }
@@ -496,10 +491,8 @@ impl DesktopRuntime {
         if !self.platform_supported() {
             state.state = DesktopState::Failed;
             state.last_error = Some(
-                DesktopProblem::unsupported_platform(
-                    "Desktop APIs are only supported on Linux hosts and sandboxes",
-                )
-                .to_error_info(),
+                DesktopProblem::unsupported_platform(desktop_platform_support_message())
+                    .to_error_info(),
             );
             return;
         }
@@ -524,6 +517,15 @@ impl DesktopRuntime {
             if state.state == DesktopState::Inactive {
                 state.last_error = None;
             }
+            return;
+        }
+
+        if state.state == DesktopState::Failed
+            && state.display.is_none()
+            && state.xvfb.is_none()
+            && state.openbox.is_none()
+            && state.dbus_pid.is_none()
+        {
             return;
         }
 
@@ -735,6 +737,24 @@ impl DesktopRuntime {
                 libc::kill(pid as i32, libc::SIGTERM);
             }
         }
+    }
+
+    async fn fail_start_locked(
+        &self,
+        state: &mut DesktopRuntimeStateData,
+        problem: DesktopProblem,
+    ) -> DesktopProblem {
+        self.record_problem_locked(state, &problem);
+        self.write_runtime_log_locked(state, "desktop runtime startup failed; cleaning up");
+        self.stop_openbox_locked(state).await;
+        self.stop_xvfb_locked(state).await;
+        self.stop_dbus_locked(state);
+        state.state = DesktopState::Failed;
+        state.display = None;
+        state.resolution = None;
+        state.started_at = None;
+        state.environment.clear();
+        problem
     }
 
     async fn capture_screenshot_locked(
@@ -1274,6 +1294,20 @@ fn parse_mouse_position(bytes: &[u8]) -> Result<DesktopMousePositionResponse, St
     }
 }
 
+fn type_text_args(text: String, delay_ms: u32) -> Vec<String> {
+    vec![
+        "type".to_string(),
+        "--delay".to_string(),
+        delay_ms.to_string(),
+        "--".to_string(),
+        text,
+    ]
+}
+
+fn press_key_args(key: String) -> Vec<String> {
+    vec!["key".to_string(), "--".to_string(), key]
+}
+
 fn validate_start_request(width: u32, height: u32, dpi: u32) -> Result<(), DesktopProblem> {
     if width == 0 || height == 0 {
         return Err(DesktopProblem::invalid_action(
@@ -1355,5 +1389,17 @@ mod tests {
     fn png_validation_rejects_non_png_bytes() {
         let error = validate_png(b"not png").expect_err("validation should fail");
         assert!(error.contains("PNG"));
+    }
+
+    #[test]
+    fn type_text_args_insert_double_dash_before_user_text() {
+        let args = type_text_args("--help".to_string(), 5);
+        assert_eq!(args, vec!["type", "--delay", "5", "--", "--help"]);
+    }
+
+    #[test]
+    fn press_key_args_insert_double_dash_before_user_key() {
+        let args = press_key_args("--help".to_string());
+        assert_eq!(args, vec!["key", "--", "--help"]);
     }
 }
