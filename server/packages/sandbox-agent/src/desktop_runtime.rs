@@ -386,8 +386,8 @@ impl DesktopRuntime {
             request.y.to_string(),
         ];
 
-        append_scroll_clicks(&mut args, delta_y, 4, 5);
-        append_scroll_clicks(&mut args, delta_x, 6, 7);
+        append_scroll_clicks(&mut args, delta_y, 5, 4);
+        append_scroll_clicks(&mut args, delta_x, 7, 6);
 
         self.run_input_command_locked(&state, &ready, args).await?;
         self.mouse_position_locked(&state, &ready).await
@@ -1192,6 +1192,8 @@ async fn run_command_output(
     environment: &HashMap<String, String>,
     timeout: Duration,
 ) -> Result<Output, String> {
+    use tokio::io::AsyncReadExt;
+
     let mut child = Command::new(command);
     child.args(args);
     child.envs(environment);
@@ -1199,11 +1201,51 @@ async fn run_command_output(
     child.stdout(Stdio::piped());
     child.stderr(Stdio::piped());
 
-    let output = tokio::time::timeout(timeout, child.output())
+    let mut child = child.spawn().map_err(|err| err.to_string())?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "failed to capture child stdout".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "failed to capture child stderr".to_string())?;
+
+    let stdout_task = tokio::spawn(async move {
+        let mut stdout = stdout;
+        let mut bytes = Vec::new();
+        stdout.read_to_end(&mut bytes).await.map(|_| bytes)
+    });
+    let stderr_task = tokio::spawn(async move {
+        let mut stderr = stderr;
+        let mut bytes = Vec::new();
+        stderr.read_to_end(&mut bytes).await.map(|_| bytes)
+    });
+
+    let status = match tokio::time::timeout(timeout, child.wait()).await {
+        Ok(result) => result.map_err(|err| err.to_string())?,
+        Err(_) => {
+            terminate_child(&mut child).await?;
+            let _ = stdout_task.await;
+            let _ = stderr_task.await;
+            return Err(format!("command timed out after {}s", timeout.as_secs()));
+        }
+    };
+
+    let stdout = stdout_task
         .await
-        .map_err(|_| format!("command timed out after {}s", timeout.as_secs()))?
+        .map_err(|err| err.to_string())?
         .map_err(|err| err.to_string())?;
-    Ok(output)
+    let stderr = stderr_task
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(|err| err.to_string())?;
+
+    Ok(Output {
+        status,
+        stdout,
+        stderr,
+    })
 }
 
 async fn terminate_child(child: &mut Child) -> Result<(), String> {
@@ -1349,11 +1391,20 @@ fn mouse_button_code(button: DesktopMouseButton) -> u8 {
     }
 }
 
-fn append_scroll_clicks(args: &mut Vec<String>, delta: i32, up_button: u8, down_button: u8) {
+fn append_scroll_clicks(
+    args: &mut Vec<String>,
+    delta: i32,
+    positive_button: u8,
+    negative_button: u8,
+) {
     if delta == 0 {
         return;
     }
-    let button = if delta > 0 { up_button } else { down_button };
+    let button = if delta > 0 {
+        positive_button
+    } else {
+        negative_button
+    };
     let repeat = delta.unsigned_abs();
     args.push("click".to_string());
     if repeat > 1 {
@@ -1401,5 +1452,50 @@ mod tests {
     fn press_key_args_insert_double_dash_before_user_key() {
         let args = press_key_args("--help".to_string());
         assert_eq!(args, vec!["key", "--", "--help"]);
+    }
+
+    #[test]
+    fn append_scroll_clicks_uses_positive_direction_buttons() {
+        let mut args = Vec::new();
+        append_scroll_clicks(&mut args, 2, 5, 4);
+        append_scroll_clicks(&mut args, -3, 7, 6);
+        assert_eq!(
+            args,
+            vec!["click", "--repeat", "2", "5", "click", "--repeat", "3", "6"]
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn run_command_output_kills_child_on_timeout() {
+        let pid_file = std::env::temp_dir().join(format!(
+            "sandbox-agent-desktop-runtime-timeout-{}.pid",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&pid_file);
+        let command = format!("echo $$ > {}; exec sleep 30", pid_file.display());
+        let args = vec!["-c".to_string(), command];
+
+        let error = run_command_output("sh", &args, &HashMap::new(), Duration::from_millis(200))
+            .await
+            .expect_err("command should time out");
+        assert!(error.contains("timed out"));
+
+        let pid = std::fs::read_to_string(&pid_file)
+            .expect("pid file should exist")
+            .trim()
+            .parse::<u32>()
+            .expect("pid should parse");
+
+        for _ in 0..20 {
+            if !process_exists(pid) {
+                let _ = std::fs::remove_file(&pid_file);
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+
+        let _ = std::fs::remove_file(&pid_file);
+        panic!("timed out child process {pid} still exists after timeout cleanup");
     }
 }

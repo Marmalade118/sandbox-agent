@@ -624,7 +624,7 @@ async fn post_v1_desktop_stop(
     responses(
         (status = 200, description = "Desktop screenshot as PNG bytes"),
         (status = 409, description = "Desktop runtime is not ready", body = ProblemDetails),
-        (status = 503, description = "Desktop runtime health or screenshot capture failed", body = ProblemDetails)
+        (status = 502, description = "Desktop runtime health or screenshot capture failed", body = ProblemDetails)
     )
 )]
 async fn get_v1_desktop_screenshot(
@@ -652,7 +652,7 @@ async fn get_v1_desktop_screenshot(
         (status = 200, description = "Desktop screenshot region as PNG bytes"),
         (status = 400, description = "Invalid screenshot region", body = ProblemDetails),
         (status = 409, description = "Desktop runtime is not ready", body = ProblemDetails),
-        (status = 503, description = "Desktop runtime health or screenshot capture failed", body = ProblemDetails)
+        (status = 502, description = "Desktop runtime health or screenshot capture failed", body = ProblemDetails)
     )
 )]
 async fn get_v1_desktop_screenshot_region(
@@ -673,7 +673,7 @@ async fn get_v1_desktop_screenshot_region(
     responses(
         (status = 200, description = "Desktop mouse position", body = DesktopMousePositionResponse),
         (status = 409, description = "Desktop runtime is not ready", body = ProblemDetails),
-        (status = 503, description = "Desktop runtime health or input check failed", body = ProblemDetails)
+        (status = 502, description = "Desktop runtime health or input check failed", body = ProblemDetails)
     )
 )]
 async fn get_v1_desktop_mouse_position(
@@ -696,7 +696,7 @@ async fn get_v1_desktop_mouse_position(
         (status = 200, description = "Desktop mouse position after move", body = DesktopMousePositionResponse),
         (status = 400, description = "Invalid mouse move request", body = ProblemDetails),
         (status = 409, description = "Desktop runtime is not ready", body = ProblemDetails),
-        (status = 503, description = "Desktop runtime health or input failed", body = ProblemDetails)
+        (status = 502, description = "Desktop runtime health or input failed", body = ProblemDetails)
     )
 )]
 async fn post_v1_desktop_mouse_move(
@@ -720,7 +720,7 @@ async fn post_v1_desktop_mouse_move(
         (status = 200, description = "Desktop mouse position after click", body = DesktopMousePositionResponse),
         (status = 400, description = "Invalid mouse click request", body = ProblemDetails),
         (status = 409, description = "Desktop runtime is not ready", body = ProblemDetails),
-        (status = 503, description = "Desktop runtime health or input failed", body = ProblemDetails)
+        (status = 502, description = "Desktop runtime health or input failed", body = ProblemDetails)
     )
 )]
 async fn post_v1_desktop_mouse_click(
@@ -744,7 +744,7 @@ async fn post_v1_desktop_mouse_click(
         (status = 200, description = "Desktop mouse position after drag", body = DesktopMousePositionResponse),
         (status = 400, description = "Invalid mouse drag request", body = ProblemDetails),
         (status = 409, description = "Desktop runtime is not ready", body = ProblemDetails),
-        (status = 503, description = "Desktop runtime health or input failed", body = ProblemDetails)
+        (status = 502, description = "Desktop runtime health or input failed", body = ProblemDetails)
     )
 )]
 async fn post_v1_desktop_mouse_drag(
@@ -768,7 +768,7 @@ async fn post_v1_desktop_mouse_drag(
         (status = 200, description = "Desktop mouse position after scroll", body = DesktopMousePositionResponse),
         (status = 400, description = "Invalid mouse scroll request", body = ProblemDetails),
         (status = 409, description = "Desktop runtime is not ready", body = ProblemDetails),
-        (status = 503, description = "Desktop runtime health or input failed", body = ProblemDetails)
+        (status = 502, description = "Desktop runtime health or input failed", body = ProblemDetails)
     )
 )]
 async fn post_v1_desktop_mouse_scroll(
@@ -792,7 +792,7 @@ async fn post_v1_desktop_mouse_scroll(
         (status = 200, description = "Desktop keyboard action result", body = DesktopActionResponse),
         (status = 400, description = "Invalid keyboard type request", body = ProblemDetails),
         (status = 409, description = "Desktop runtime is not ready", body = ProblemDetails),
-        (status = 503, description = "Desktop runtime health or input failed", body = ProblemDetails)
+        (status = 502, description = "Desktop runtime health or input failed", body = ProblemDetails)
     )
 )]
 async fn post_v1_desktop_keyboard_type(
@@ -816,7 +816,7 @@ async fn post_v1_desktop_keyboard_type(
         (status = 200, description = "Desktop keyboard action result", body = DesktopActionResponse),
         (status = 400, description = "Invalid keyboard press request", body = ProblemDetails),
         (status = 409, description = "Desktop runtime is not ready", body = ProblemDetails),
-        (status = 503, description = "Desktop runtime health or input failed", body = ProblemDetails)
+        (status = 502, description = "Desktop runtime health or input failed", body = ProblemDetails)
     )
 )]
 async fn post_v1_desktop_keyboard_press(

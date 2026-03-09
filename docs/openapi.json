@@ -745,7 +745,7 @@
               }
             }
           },
-          "503": {
+          "502": {
             "description": "Desktop runtime health or input failed",
             "content": {
               "application/json": {
@@ -807,7 +807,7 @@
               }
             }
           },
-          "503": {
+          "502": {
             "description": "Desktop runtime health or input failed",
             "content": {
               "application/json": {
@@ -869,7 +869,7 @@
               }
             }
           },
-          "503": {
+          "502": {
             "description": "Desktop runtime health or input failed",
             "content": {
               "application/json": {
@@ -931,7 +931,7 @@
               }
             }
           },
-          "503": {
+          "502": {
             "description": "Desktop runtime health or input failed",
             "content": {
               "application/json": {
@@ -993,7 +993,7 @@
               }
             }
           },
-          "503": {
+          "502": {
             "description": "Desktop runtime health or input failed",
             "content": {
               "application/json": {
@@ -1035,7 +1035,7 @@
               }
             }
           },
-          "503": {
+          "502": {
             "description": "Desktop runtime health or input check failed",
             "content": {
               "application/json": {
@@ -1097,7 +1097,7 @@
               }
             }
           },
-          "503": {
+          "502": {
             "description": "Desktop runtime health or input failed",
             "content": {
               "application/json": {
@@ -1132,7 +1132,7 @@
               }
             }
           },
-          "503": {
+          "502": {
             "description": "Desktop runtime health or screenshot capture failed",
             "content": {
               "application/json": {
@@ -1221,7 +1221,7 @@
               }
             }
           },
-          "503": {
+          "502": {
             "description": "Desktop runtime health or screenshot capture failed",
             "content": {
               "application/json": {
