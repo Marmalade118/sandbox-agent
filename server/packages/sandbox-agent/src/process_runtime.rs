@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -27,6 +27,22 @@ pub enum ProcessStream {
     Pty,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProcessOwner {
+    User,
+    Desktop,
+    System,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RestartPolicy {
+    Never,
+    Always,
+    OnFailure,
+}
+
 #[derive(Debug, Clone)]
 pub struct ProcessStartSpec {
     pub command: String,
@@ -35,6 +51,8 @@ pub struct ProcessStartSpec {
     pub env: HashMap<String, String>,
     pub tty: bool,
     pub interactive: bool,
+    pub owner: ProcessOwner,
+    pub restart_policy: Option<RestartPolicy>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +96,7 @@ pub struct ProcessSnapshot {
     pub cwd: Option<String>,
     pub tty: bool,
     pub interactive: bool,
+    pub owner: ProcessOwner,
     pub status: ProcessStatus,
     pub pid: Option<u32>,
     pub exit_code: Option<i32>,
@@ -129,17 +148,27 @@ struct ManagedProcess {
     cwd: Option<String>,
     tty: bool,
     interactive: bool,
+    owner: ProcessOwner,
+    #[allow(dead_code)]
+    restart_policy: RestartPolicy,
+    spec: ProcessStartSpec,
     created_at_ms: i64,
-    pid: Option<u32>,
     max_log_bytes: usize,
-    stdin: Mutex<Option<ProcessStdin>>,
-    #[cfg(unix)]
-    pty_resize_fd: Mutex<Option<std::fs::File>>,
+    runtime: Mutex<ManagedRuntime>,
     status: RwLock<ManagedStatus>,
     sequence: AtomicU64,
     logs: Mutex<VecDeque<StoredLog>>,
     total_log_bytes: Mutex<usize>,
     log_tx: broadcast::Sender<ProcessLogLine>,
+    stop_requested: AtomicBool,
+}
+
+#[derive(Debug)]
+struct ManagedRuntime {
+    pid: Option<u32>,
+    stdin: Option<ProcessStdin>,
+    #[cfg(unix)]
+    pty_resize_fd: Option<std::fs::File>,
 }
 
 #[derive(Debug)]
@@ -162,17 +191,17 @@ struct ManagedStatus {
 }
 
 struct SpawnedPipeProcess {
-    process: Arc<ManagedProcess>,
     child: Child,
     stdout: tokio::process::ChildStdout,
     stderr: tokio::process::ChildStderr,
+    runtime: ManagedRuntime,
 }
 
 #[cfg(unix)]
 struct SpawnedTtyProcess {
-    process: Arc<ManagedProcess>,
     child: Child,
     reader: tokio::fs::File,
+    runtime: ManagedRuntime,
 }
 
 impl ProcessRuntime {
@@ -224,21 +253,14 @@ impl ProcessRuntime {
         &self,
         spec: ProcessStartSpec,
     ) -> Result<ProcessSnapshot, SandboxError> {
-        let config = self.get_config().await;
-
-        let process_refs = {
-            let processes = self.inner.processes.read().await;
-            processes.values().cloned().collect::<Vec<_>>()
-        };
-
-        let mut running_count = 0usize;
-        for process in process_refs {
-            if process.status.read().await.status == ProcessStatus::Running {
-                running_count += 1;
-            }
+        if spec.command.trim().is_empty() {
+            return Err(SandboxError::InvalidRequest {
+                message: "command must not be empty".to_string(),
+            });
         }
 
-        if running_count >= config.max_concurrent_processes {
+        let config = self.get_config().await;
+        if self.running_process_count().await >= config.max_concurrent_processes {
             return Err(SandboxError::Conflict {
                 message: format!(
                     "max concurrent process limit reached ({})",
@@ -247,73 +269,40 @@ impl ProcessRuntime {
             });
         }
 
-        if spec.command.trim().is_empty() {
-            return Err(SandboxError::InvalidRequest {
-                message: "command must not be empty".to_string(),
-            });
-        }
-
         let id_num = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         let id = format!("proc_{id_num}");
-
-        if spec.tty {
-            #[cfg(unix)]
-            {
-                let spawned = self
-                    .spawn_tty_process(id.clone(), spec, config.max_log_bytes_per_process)
-                    .await?;
-                let process = spawned.process.clone();
-                self.inner
-                    .processes
-                    .write()
-                    .await
-                    .insert(id, process.clone());
-
-                let p = process.clone();
-                tokio::spawn(async move {
-                    pump_output(p, spawned.reader, ProcessStream::Pty).await;
-                });
-
-                let p = process.clone();
-                tokio::spawn(async move {
-                    watch_exit(p, spawned.child).await;
-                });
-
-                return Ok(process.snapshot().await);
-            }
-            #[cfg(not(unix))]
-            {
-                return Err(SandboxError::StreamError {
-                    message: "tty process mode is not supported on this platform".to_string(),
-                });
-            }
-        }
-
-        let spawned = self
-            .spawn_pipe_process(id.clone(), spec, config.max_log_bytes_per_process)
-            .await?;
-        let process = spawned.process.clone();
-        self.inner
-            .processes
-            .write()
-            .await
-            .insert(id, process.clone());
-
-        let p = process.clone();
-        tokio::spawn(async move {
-            pump_output(p, spawned.stdout, ProcessStream::Stdout).await;
+        let process = Arc::new(ManagedProcess {
+            id: id.clone(),
+            command: spec.command.clone(),
+            args: spec.args.clone(),
+            cwd: spec.cwd.clone(),
+            tty: spec.tty,
+            interactive: spec.interactive,
+            owner: spec.owner,
+            restart_policy: spec.restart_policy.unwrap_or(RestartPolicy::Never),
+            spec,
+            created_at_ms: now_ms(),
+            max_log_bytes: config.max_log_bytes_per_process,
+            runtime: Mutex::new(ManagedRuntime {
+                pid: None,
+                stdin: None,
+                #[cfg(unix)]
+                pty_resize_fd: None,
+            }),
+            status: RwLock::new(ManagedStatus {
+                status: ProcessStatus::Running,
+                exit_code: None,
+                exited_at_ms: None,
+            }),
+            sequence: AtomicU64::new(1),
+            logs: Mutex::new(VecDeque::new()),
+            total_log_bytes: Mutex::new(0),
+            log_tx: broadcast::channel(512).0,
+            stop_requested: AtomicBool::new(false),
         });
 
-        let p = process.clone();
-        tokio::spawn(async move {
-            pump_output(p, spawned.stderr, ProcessStream::Stderr).await;
-        });
-
-        let p = process.clone();
-        tokio::spawn(async move {
-            watch_exit(p, spawned.child).await;
-        });
-
+        self.spawn_existing_process(process.clone()).await?;
+        self.inner.processes.write().await.insert(id, process.clone());
         Ok(process.snapshot().await)
     }
 
@@ -412,11 +401,13 @@ impl ProcessRuntime {
         })
     }
 
-    pub async fn list_processes(&self) -> Vec<ProcessSnapshot> {
+    pub async fn list_processes(&self, owner: Option<ProcessOwner>) -> Vec<ProcessSnapshot> {
         let processes = self.inner.processes.read().await;
         let mut items = Vec::with_capacity(processes.len());
         for process in processes.values() {
-            items.push(process.snapshot().await);
+            if owner.is_none_or(|expected| process.owner == expected) {
+                items.push(process.snapshot().await);
+            }
         }
         items.sort_by(|a, b| a.id.cmp(&b.id));
         items
@@ -453,6 +444,7 @@ impl ProcessRuntime {
         wait_ms: Option<u64>,
     ) -> Result<ProcessSnapshot, SandboxError> {
         let process = self.lookup_process(id).await?;
+        process.stop_requested.store(true, Ordering::SeqCst);
         process.send_signal(SIGTERM).await?;
         maybe_wait_for_exit(process.clone(), wait_ms.unwrap_or(2_000)).await;
         Ok(process.snapshot().await)
@@ -464,6 +456,7 @@ impl ProcessRuntime {
         wait_ms: Option<u64>,
     ) -> Result<ProcessSnapshot, SandboxError> {
         let process = self.lookup_process(id).await?;
+        process.stop_requested.store(true, Ordering::SeqCst);
         process.send_signal(SIGKILL).await?;
         maybe_wait_for_exit(process.clone(), wait_ms.unwrap_or(1_000)).await;
         Ok(process.snapshot().await)
@@ -506,6 +499,17 @@ impl ProcessRuntime {
         Ok(process.log_tx.subscribe())
     }
 
+    async fn running_process_count(&self) -> usize {
+        let processes = self.inner.processes.read().await;
+        let mut running = 0usize;
+        for process in processes.values() {
+            if process.status.read().await.status == ProcessStatus::Running {
+                running += 1;
+            }
+        }
+        running
+    }
+
     async fn lookup_process(&self, id: &str) -> Result<Arc<ManagedProcess>, SandboxError> {
         let process = self.inner.processes.read().await.get(id).cloned();
         process.ok_or_else(|| SandboxError::NotFound {
@@ -514,12 +518,81 @@ impl ProcessRuntime {
         })
     }
 
-    async fn spawn_pipe_process(
+    async fn spawn_existing_process(
         &self,
-        id: String,
-        spec: ProcessStartSpec,
-        max_log_bytes: usize,
-    ) -> Result<SpawnedPipeProcess, SandboxError> {
+        process: Arc<ManagedProcess>,
+    ) -> Result<(), SandboxError> {
+        process.stop_requested.store(false, Ordering::SeqCst);
+        let mut runtime_guard = process.runtime.lock().await;
+        let mut status_guard = process.status.write().await;
+
+        if process.tty {
+            #[cfg(unix)]
+            {
+                let SpawnedTtyProcess {
+                    child,
+                    reader,
+                    runtime,
+                } = self.spawn_tty_process(&process.spec)?;
+                *runtime_guard = runtime;
+                status_guard.status = ProcessStatus::Running;
+                status_guard.exit_code = None;
+                status_guard.exited_at_ms = None;
+                drop(status_guard);
+                drop(runtime_guard);
+
+                let process_for_output = process.clone();
+                tokio::spawn(async move {
+                    pump_output(process_for_output, reader, ProcessStream::Pty).await;
+                });
+
+                let runtime = self.clone();
+                tokio::spawn(async move {
+                    watch_exit(runtime, process, child).await;
+                });
+
+                return Ok(());
+            }
+            #[cfg(not(unix))]
+            {
+                return Err(SandboxError::StreamError {
+                    message: "tty process mode is not supported on this platform".to_string(),
+                });
+            }
+        }
+
+        let SpawnedPipeProcess {
+            child,
+            stdout,
+            stderr,
+            runtime,
+        } = self.spawn_pipe_process(&process.spec)?;
+        *runtime_guard = runtime;
+        status_guard.status = ProcessStatus::Running;
+        status_guard.exit_code = None;
+        status_guard.exited_at_ms = None;
+        drop(status_guard);
+        drop(runtime_guard);
+
+        let process_for_stdout = process.clone();
+        tokio::spawn(async move {
+            pump_output(process_for_stdout, stdout, ProcessStream::Stdout).await;
+        });
+
+        let process_for_stderr = process.clone();
+        tokio::spawn(async move {
+            pump_output(process_for_stderr, stderr, ProcessStream::Stderr).await;
+        });
+
+        let runtime = self.clone();
+        tokio::spawn(async move {
+            watch_exit(runtime, process, child).await;
+        });
+
+        Ok(())
+    }
+
+    fn spawn_pipe_process(&self, spec: &ProcessStartSpec) -> Result<SpawnedPipeProcess, SandboxError> {
         let mut cmd = Command::new(&spec.command);
         cmd.args(&spec.args)
             .stdin(std::process::Stdio::piped())
@@ -551,35 +624,14 @@ impl ProcessRuntime {
             .ok_or_else(|| SandboxError::StreamError {
                 message: "failed to capture stderr".to_string(),
             })?;
-        let pid = child.id();
-
-        let (tx, _rx) = broadcast::channel(512);
-        let process = Arc::new(ManagedProcess {
-            id,
-            command: spec.command,
-            args: spec.args,
-            cwd: spec.cwd,
-            tty: false,
-            interactive: spec.interactive,
-            created_at_ms: now_ms(),
-            pid,
-            max_log_bytes,
-            stdin: Mutex::new(stdin.map(ProcessStdin::Pipe)),
-            #[cfg(unix)]
-            pty_resize_fd: Mutex::new(None),
-            status: RwLock::new(ManagedStatus {
-                status: ProcessStatus::Running,
-                exit_code: None,
-                exited_at_ms: None,
-            }),
-            sequence: AtomicU64::new(1),
-            logs: Mutex::new(VecDeque::new()),
-            total_log_bytes: Mutex::new(0),
-            log_tx: tx,
-        });
 
         Ok(SpawnedPipeProcess {
-            process,
+            runtime: ManagedRuntime {
+                pid: child.id(),
+                stdin: stdin.map(ProcessStdin::Pipe),
+                #[cfg(unix)]
+                pty_resize_fd: None,
+            },
             child,
             stdout,
             stderr,
@@ -587,12 +639,7 @@ impl ProcessRuntime {
     }
 
     #[cfg(unix)]
-    async fn spawn_tty_process(
-        &self,
-        id: String,
-        spec: ProcessStartSpec,
-        max_log_bytes: usize,
-    ) -> Result<SpawnedTtyProcess, SandboxError> {
+    fn spawn_tty_process(&self, spec: &ProcessStartSpec) -> Result<SpawnedTtyProcess, SandboxError> {
         use std::os::fd::AsRawFd;
         use std::process::Stdio;
 
@@ -632,8 +679,8 @@ impl ProcessRuntime {
         let child = cmd.spawn().map_err(|err| SandboxError::StreamError {
             message: format!("failed to spawn tty process: {err}"),
         })?;
-
         let pid = child.id();
+
         drop(slave_fd);
 
         let master_raw = master_fd.as_raw_fd();
@@ -644,32 +691,12 @@ impl ProcessRuntime {
         let writer_file = tokio::fs::File::from_std(std::fs::File::from(writer_fd));
         let resize_file = std::fs::File::from(resize_fd);
 
-        let (tx, _rx) = broadcast::channel(512);
-        let process = Arc::new(ManagedProcess {
-            id,
-            command: spec.command,
-            args: spec.args,
-            cwd: spec.cwd,
-            tty: true,
-            interactive: spec.interactive,
-            created_at_ms: now_ms(),
-            pid,
-            max_log_bytes,
-            stdin: Mutex::new(Some(ProcessStdin::Pty(writer_file))),
-            pty_resize_fd: Mutex::new(Some(resize_file)),
-            status: RwLock::new(ManagedStatus {
-                status: ProcessStatus::Running,
-                exit_code: None,
-                exited_at_ms: None,
-            }),
-            sequence: AtomicU64::new(1),
-            logs: Mutex::new(VecDeque::new()),
-            total_log_bytes: Mutex::new(0),
-            log_tx: tx,
-        });
-
         Ok(SpawnedTtyProcess {
-            process,
+            runtime: ManagedRuntime {
+                pid,
+                stdin: Some(ProcessStdin::Pty(writer_file)),
+                pty_resize_fd: Some(resize_file),
+            },
             child,
             reader: reader_file,
         })
@@ -694,6 +721,7 @@ pub struct ProcessLogFilter {
 impl ManagedProcess {
     async fn snapshot(&self) -> ProcessSnapshot {
         let status = self.status.read().await.clone();
+        let pid = self.runtime.lock().await.pid;
         ProcessSnapshot {
             id: self.id.clone(),
             command: self.command.clone(),
@@ -701,8 +729,9 @@ impl ManagedProcess {
             cwd: self.cwd.clone(),
             tty: self.tty,
             interactive: self.interactive,
+            owner: self.owner,
             status: status.status,
-            pid: self.pid,
+            pid,
             exit_code: status.exit_code,
             created_at_ms: self.created_at_ms,
             exited_at_ms: status.exited_at_ms,
@@ -752,8 +781,8 @@ impl ManagedProcess {
             });
         }
 
-        let mut guard = self.stdin.lock().await;
-        let stdin = guard.as_mut().ok_or_else(|| SandboxError::Conflict {
+        let mut runtime = self.runtime.lock().await;
+        let stdin = runtime.stdin.as_mut().ok_or_else(|| SandboxError::Conflict {
             message: "process does not accept stdin".to_string(),
         })?;
 
@@ -825,7 +854,7 @@ impl ManagedProcess {
         if self.status.read().await.status != ProcessStatus::Running {
             return Ok(());
         }
-        let Some(pid) = self.pid else {
+        let Some(pid) = self.runtime.lock().await.pid else {
             return Ok(());
         };
 
@@ -840,8 +869,9 @@ impl ManagedProcess {
         #[cfg(unix)]
         {
             use std::os::fd::AsRawFd;
-            let guard = self.pty_resize_fd.lock().await;
-            let Some(fd) = guard.as_ref() else {
+
+            let runtime = self.runtime.lock().await;
+            let Some(fd) = runtime.pty_resize_fd.as_ref() else {
                 return Err(SandboxError::Conflict {
                     message: "PTY resize handle unavailable".to_string(),
                 });
@@ -856,6 +886,32 @@ impl ManagedProcess {
         }
 
         Ok(())
+    }
+
+    #[allow(dead_code)]
+    fn should_restart(&self, exit_code: Option<i32>) -> bool {
+        match self.restart_policy {
+            RestartPolicy::Never => false,
+            RestartPolicy::Always => true,
+            RestartPolicy::OnFailure => exit_code.unwrap_or(1) != 0,
+        }
+    }
+
+    async fn mark_exited(&self, exit_code: Option<i32>, exited_at_ms: Option<i64>) {
+        {
+            let mut status = self.status.write().await;
+            status.status = ProcessStatus::Exited;
+            status.exit_code = exit_code;
+            status.exited_at_ms = exited_at_ms;
+        }
+
+        let mut runtime = self.runtime.lock().await;
+        runtime.pid = None;
+        let _ = runtime.stdin.take();
+        #[cfg(unix)]
+        {
+            let _ = runtime.pty_resize_fd.take();
+        }
     }
 }
 
@@ -909,21 +965,16 @@ where
     }
 }
 
-async fn watch_exit(process: Arc<ManagedProcess>, mut child: Child) {
+async fn watch_exit(runtime: ProcessRuntime, process: Arc<ManagedProcess>, mut child: Child) {
+    let _ = runtime;
     let wait = child.wait().await;
     let (exit_code, exited_at_ms) = match wait {
         Ok(status) => (status.code(), Some(now_ms())),
         Err(_) => (None, Some(now_ms())),
     };
 
-    {
-        let mut state = process.status.write().await;
-        state.status = ProcessStatus::Exited;
-        state.exit_code = exit_code;
-        state.exited_at_ms = exited_at_ms;
-    }
-
-    let _ = process.stdin.lock().await.take();
+    let _ = process.stop_requested.swap(false, Ordering::SeqCst);
+    process.mark_exited(exit_code, exited_at_ms).await;
 }
 
 async fn capture_output<R>(mut reader: R, max_bytes: usize) -> std::io::Result<(Vec<u8>, bool)>

@@ -9,6 +9,40 @@ import type { components, operations } from "./generated/openapi.ts";
 export type ProblemDetails = components["schemas"]["ProblemDetails"];
 
 export type HealthResponse = JsonResponse<operations["get_v1_health"], 200>;
+export type DesktopState = components["schemas"]["DesktopState"];
+export type DesktopResolution = components["schemas"]["DesktopResolution"];
+export type DesktopErrorInfo = components["schemas"]["DesktopErrorInfo"];
+export type DesktopProcessInfo = components["schemas"]["DesktopProcessInfo"];
+export type DesktopStatusResponse = JsonResponse<operations["get_v1_desktop_status"], 200>;
+export type DesktopStartRequest = JsonRequestBody<operations["post_v1_desktop_start"]>;
+export type DesktopScreenshotFormat = components["schemas"]["DesktopScreenshotFormat"];
+export type DesktopScreenshotQuery =
+  QueryParams<operations["get_v1_desktop_screenshot"]> extends never
+    ? Record<string, never>
+    : QueryParams<operations["get_v1_desktop_screenshot"]>;
+export type DesktopRegionScreenshotQuery = QueryParams<operations["get_v1_desktop_screenshot_region"]>;
+export type DesktopMousePositionResponse = JsonResponse<operations["get_v1_desktop_mouse_position"], 200>;
+export type DesktopMouseButton = components["schemas"]["DesktopMouseButton"];
+export type DesktopMouseMoveRequest = JsonRequestBody<operations["post_v1_desktop_mouse_move"]>;
+export type DesktopMouseClickRequest = JsonRequestBody<operations["post_v1_desktop_mouse_click"]>;
+export type DesktopMouseDownRequest = JsonRequestBody<operations["post_v1_desktop_mouse_down"]>;
+export type DesktopMouseUpRequest = JsonRequestBody<operations["post_v1_desktop_mouse_up"]>;
+export type DesktopMouseDragRequest = JsonRequestBody<operations["post_v1_desktop_mouse_drag"]>;
+export type DesktopMouseScrollRequest = JsonRequestBody<operations["post_v1_desktop_mouse_scroll"]>;
+export type DesktopKeyboardTypeRequest = JsonRequestBody<operations["post_v1_desktop_keyboard_type"]>;
+export type DesktopKeyModifiers = components["schemas"]["DesktopKeyModifiers"];
+export type DesktopKeyboardPressRequest = JsonRequestBody<operations["post_v1_desktop_keyboard_press"]>;
+export type DesktopKeyboardDownRequest = JsonRequestBody<operations["post_v1_desktop_keyboard_down"]>;
+export type DesktopKeyboardUpRequest = JsonRequestBody<operations["post_v1_desktop_keyboard_up"]>;
+export type DesktopActionResponse = JsonResponse<operations["post_v1_desktop_keyboard_type"], 200>;
+export type DesktopDisplayInfoResponse = JsonResponse<operations["get_v1_desktop_display_info"], 200>;
+export type DesktopWindowInfo = components["schemas"]["DesktopWindowInfo"];
+export type DesktopWindowListResponse = JsonResponse<operations["get_v1_desktop_windows"], 200>;
+export type DesktopRecordingStartRequest = JsonRequestBody<operations["post_v1_desktop_recording_start"]>;
+export type DesktopRecordingStatus = components["schemas"]["DesktopRecordingStatus"];
+export type DesktopRecordingInfo = JsonResponse<operations["post_v1_desktop_recording_start"], 200>;
+export type DesktopRecordingListResponse = JsonResponse<operations["get_v1_desktop_recordings"], 200>;
+export type DesktopStreamStatusResponse = JsonResponse<operations["post_v1_desktop_stream_start"], 200>;
 export type AgentListResponse = JsonResponse<operations["get_v1_agents"], 200>;
 export type AgentInfo = components["schemas"]["AgentInfo"];
 export type AgentQuery = QueryParams<operations["get_v1_agents"]>;
@@ -42,11 +76,13 @@ export type ProcessCreateRequest = JsonRequestBody<operations["post_v1_processes
 export type ProcessInfo = components["schemas"]["ProcessInfo"];
 export type ProcessInputRequest = JsonRequestBody<operations["post_v1_process_input"]>;
 export type ProcessInputResponse = JsonResponse<operations["post_v1_process_input"], 200>;
+export type ProcessListQuery = QueryParams<operations["get_v1_processes"]>;
 export type ProcessListResponse = JsonResponse<operations["get_v1_processes"], 200>;
 export type ProcessLogEntry = components["schemas"]["ProcessLogEntry"];
 export type ProcessLogsQuery = QueryParams<operations["get_v1_process_logs"]>;
 export type ProcessLogsResponse = JsonResponse<operations["get_v1_process_logs"], 200>;
 export type ProcessLogsStream = components["schemas"]["ProcessLogsStream"];
+export type ProcessOwner = components["schemas"]["ProcessOwner"];
 export type ProcessRunRequest = JsonRequestBody<operations["post_v1_processes_run"]>;
 export type ProcessRunResponse = JsonResponse<operations["post_v1_processes_run"], 200>;
 export type ProcessSignalQuery = QueryParams<operations["post_v1_process_stop"]>;

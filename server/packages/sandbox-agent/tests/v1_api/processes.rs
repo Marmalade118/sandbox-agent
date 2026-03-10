@@ -2,6 +2,7 @@ use super::*;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use futures::{SinkExt, StreamExt};
+use serial_test::serial;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
@@ -278,6 +279,92 @@ async fn v1_process_tty_input_and_logs() {
 }
 
 #[tokio::test]
+#[serial]
+async fn v1_processes_owner_filter_separates_user_and_desktop_processes() {
+    let test_app = TestApp::new(AuthConfig::disabled());
+
+    let (status, _, body) = send_request(
+        &test_app.app,
+        Method::POST,
+        "/v1/processes",
+        Some(json!({
+            "command": "sh",
+            "args": ["-lc", "sleep 30"],
+            "tty": false,
+            "interactive": false
+        })),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let user_process_id = parse_json(&body)["id"]
+        .as_str()
+        .expect("process id")
+        .to_string();
+
+    let (status, _, body) = send_request(
+        &test_app.app,
+        Method::POST,
+        "/v1/desktop/start",
+        Some(json!({
+            "width": 1024,
+            "height": 768
+        })),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(parse_json(&body)["state"], "active");
+
+    let (status, _, body) = send_request(
+        &test_app.app,
+        Method::GET,
+        "/v1/processes?owner=user",
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let user_processes = parse_json(&body)["processes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert!(user_processes.iter().any(|process| process["id"] == user_process_id));
+    assert!(user_processes.iter().all(|process| process["owner"] == "user"));
+
+    let (status, _, body) = send_request(
+        &test_app.app,
+        Method::GET,
+        "/v1/processes?owner=desktop",
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let desktop_processes = parse_json(&body)["processes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert!(desktop_processes.len() >= 2);
+    assert!(desktop_processes.iter().all(|process| process["owner"] == "desktop"));
+
+    let (status, _, _) = send_request(
+        &test_app.app,
+        Method::POST,
+        &format!("/v1/processes/{user_process_id}/kill"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _, body) =
+        send_request(&test_app.app, Method::POST, "/v1/desktop/stop", None, &[]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(parse_json(&body)["state"], "inactive");
+}
+
+#[tokio::test]
 async fn v1_process_not_found_returns_404() {
     let test_app = TestApp::new(AuthConfig::disabled());
 
@@ -413,22 +500,17 @@ async fn v1_process_logs_follow_sse_streams_entries() {
         .expect("process id")
         .to_string();
 
-    let request = Request::builder()
-        .method(Method::GET)
-        .uri(format!(
+    let response = reqwest::Client::new()
+        .get(test_app.app.http_url(&format!(
             "/v1/processes/{process_id}/logs?stream=stdout&follow=true"
-        ))
-        .body(Body::empty())
-        .expect("build request");
-    let response = test_app
-        .app
-        .clone()
-        .oneshot(request)
+        )))
+        .header("accept", "text/event-stream")
+        .send()
         .await
         .expect("sse response");
     assert_eq!(response.status(), StatusCode::OK);
 
-    let mut stream = response.into_body().into_data_stream();
+    let mut stream = response.bytes_stream();
     let chunk = tokio::time::timeout(Duration::from_secs(5), async move {
         while let Some(chunk) = stream.next().await {
             let bytes = chunk.expect("stream chunk");

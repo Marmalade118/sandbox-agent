@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+cat <<'EOF'
+Screen 0: minimum 1 x 1, current 1440 x 900, maximum 32767 x 32767
+EOF

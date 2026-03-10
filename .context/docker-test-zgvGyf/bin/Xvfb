@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+set -eu
+display="${1:-:191}"
+number="${display#:}"
+socket="/tmp/.X11-unix/X${number}"
+mkdir -p /tmp/.X11-unix
+touch "$socket"
+cleanup() {
+  rm -f "$socket"
+  exit 0
+}
+trap cleanup INT TERM EXIT
+while :; do
+  sleep 1
+done

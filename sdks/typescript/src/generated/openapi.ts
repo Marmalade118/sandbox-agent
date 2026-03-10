@@ -32,6 +32,213 @@ export interface paths {
     put: operations["put_v1_config_skills"];
     delete: operations["delete_v1_config_skills"];
   };
+  "/v1/desktop/display/info": {
+    /**
+     * Get desktop display information.
+     * @description Performs a health-gated display query against the managed desktop and
+     * returns the current display identifier and resolution.
+     */
+    get: operations["get_v1_desktop_display_info"];
+  };
+  "/v1/desktop/keyboard/down": {
+    /**
+     * Press and hold a desktop keyboard key.
+     * @description Performs a health-gated `xdotool keydown` operation against the managed
+     * desktop.
+     */
+    post: operations["post_v1_desktop_keyboard_down"];
+  };
+  "/v1/desktop/keyboard/press": {
+    /**
+     * Press a desktop keyboard shortcut.
+     * @description Performs a health-gated `xdotool key` operation against the managed
+     * desktop.
+     */
+    post: operations["post_v1_desktop_keyboard_press"];
+  };
+  "/v1/desktop/keyboard/type": {
+    /**
+     * Type desktop keyboard text.
+     * @description Performs a health-gated `xdotool type` operation against the managed
+     * desktop.
+     */
+    post: operations["post_v1_desktop_keyboard_type"];
+  };
+  "/v1/desktop/keyboard/up": {
+    /**
+     * Release a desktop keyboard key.
+     * @description Performs a health-gated `xdotool keyup` operation against the managed
+     * desktop.
+     */
+    post: operations["post_v1_desktop_keyboard_up"];
+  };
+  "/v1/desktop/mouse/click": {
+    /**
+     * Click on the desktop.
+     * @description Performs a health-gated pointer move and click against the managed desktop
+     * and returns the resulting mouse position.
+     */
+    post: operations["post_v1_desktop_mouse_click"];
+  };
+  "/v1/desktop/mouse/down": {
+    /**
+     * Press and hold a desktop mouse button.
+     * @description Performs a health-gated optional pointer move followed by `xdotool mousedown`
+     * and returns the resulting mouse position.
+     */
+    post: operations["post_v1_desktop_mouse_down"];
+  };
+  "/v1/desktop/mouse/drag": {
+    /**
+     * Drag the desktop mouse.
+     * @description Performs a health-gated drag gesture against the managed desktop and
+     * returns the resulting mouse position.
+     */
+    post: operations["post_v1_desktop_mouse_drag"];
+  };
+  "/v1/desktop/mouse/move": {
+    /**
+     * Move the desktop mouse.
+     * @description Performs a health-gated absolute pointer move on the managed desktop and
+     * returns the resulting mouse position.
+     */
+    post: operations["post_v1_desktop_mouse_move"];
+  };
+  "/v1/desktop/mouse/position": {
+    /**
+     * Get the current desktop mouse position.
+     * @description Performs a health-gated mouse position query against the managed desktop.
+     */
+    get: operations["get_v1_desktop_mouse_position"];
+  };
+  "/v1/desktop/mouse/scroll": {
+    /**
+     * Scroll the desktop mouse wheel.
+     * @description Performs a health-gated scroll gesture at the requested coordinates and
+     * returns the resulting mouse position.
+     */
+    post: operations["post_v1_desktop_mouse_scroll"];
+  };
+  "/v1/desktop/mouse/up": {
+    /**
+     * Release a desktop mouse button.
+     * @description Performs a health-gated optional pointer move followed by `xdotool mouseup`
+     * and returns the resulting mouse position.
+     */
+    post: operations["post_v1_desktop_mouse_up"];
+  };
+  "/v1/desktop/recording/start": {
+    /**
+     * Start desktop recording.
+     * @description Starts an ffmpeg x11grab recording against the managed desktop and returns
+     * the created recording metadata.
+     */
+    post: operations["post_v1_desktop_recording_start"];
+  };
+  "/v1/desktop/recording/stop": {
+    /**
+     * Stop desktop recording.
+     * @description Stops the active desktop recording and returns the finalized recording
+     * metadata.
+     */
+    post: operations["post_v1_desktop_recording_stop"];
+  };
+  "/v1/desktop/recordings": {
+    /**
+     * List desktop recordings.
+     * @description Returns the current desktop recording catalog.
+     */
+    get: operations["get_v1_desktop_recordings"];
+  };
+  "/v1/desktop/recordings/{id}": {
+    /**
+     * Get desktop recording metadata.
+     * @description Returns metadata for a single desktop recording.
+     */
+    get: operations["get_v1_desktop_recording"];
+    /**
+     * Delete a desktop recording.
+     * @description Removes a completed desktop recording and its file from disk.
+     */
+    delete: operations["delete_v1_desktop_recording"];
+  };
+  "/v1/desktop/recordings/{id}/download": {
+    /**
+     * Download a desktop recording.
+     * @description Serves the recorded MP4 bytes for a completed desktop recording.
+     */
+    get: operations["get_v1_desktop_recording_download"];
+  };
+  "/v1/desktop/screenshot": {
+    /**
+     * Capture a full desktop screenshot.
+     * @description Performs a health-gated full-frame screenshot of the managed desktop and
+     * returns the requested image bytes.
+     */
+    get: operations["get_v1_desktop_screenshot"];
+  };
+  "/v1/desktop/screenshot/region": {
+    /**
+     * Capture a desktop screenshot region.
+     * @description Performs a health-gated screenshot crop against the managed desktop and
+     * returns the requested region image bytes.
+     */
+    get: operations["get_v1_desktop_screenshot_region"];
+  };
+  "/v1/desktop/start": {
+    /**
+     * Start the private desktop runtime.
+     * @description Lazily launches the managed Xvfb/openbox stack, validates display health,
+     * and returns the resulting desktop status snapshot.
+     */
+    post: operations["post_v1_desktop_start"];
+  };
+  "/v1/desktop/status": {
+    /**
+     * Get desktop runtime status.
+     * @description Returns the current desktop runtime state, dependency status, active
+     * display metadata, and supervised process information.
+     */
+    get: operations["get_v1_desktop_status"];
+  };
+  "/v1/desktop/stop": {
+    /**
+     * Stop the private desktop runtime.
+     * @description Terminates the managed openbox/Xvfb/dbus processes owned by the desktop
+     * runtime and returns the resulting status snapshot.
+     */
+    post: operations["post_v1_desktop_stop"];
+  };
+  "/v1/desktop/stream/start": {
+    /**
+     * Start desktop streaming.
+     * @description Enables desktop websocket streaming for the managed desktop.
+     */
+    post: operations["post_v1_desktop_stream_start"];
+  };
+  "/v1/desktop/stream/stop": {
+    /**
+     * Stop desktop streaming.
+     * @description Disables desktop websocket streaming for the managed desktop.
+     */
+    post: operations["post_v1_desktop_stream_stop"];
+  };
+  "/v1/desktop/stream/ws": {
+    /**
+     * Open a desktop websocket streaming session.
+     * @description Upgrades the connection to a websocket that streams JPEG desktop frames and
+     * accepts mouse and keyboard control frames.
+     */
+    get: operations["get_v1_desktop_stream_ws"];
+  };
+  "/v1/desktop/windows": {
+    /**
+     * List visible desktop windows.
+     * @description Performs a health-gated visible-window enumeration against the managed
+     * desktop and returns the current window metadata.
+     */
+    get: operations["get_v1_desktop_windows"];
+  };
   "/v1/fs/entries": {
     get: operations["get_v1_fs_entries"];
   };
@@ -234,6 +441,197 @@ export interface components {
     AgentListResponse: {
       agents: components["schemas"]["AgentInfo"][];
     };
+    DesktopActionResponse: {
+      ok: boolean;
+    };
+    DesktopDisplayInfoResponse: {
+      display: string;
+      resolution: components["schemas"]["DesktopResolution"];
+    };
+    DesktopErrorInfo: {
+      code: string;
+      message: string;
+    };
+    DesktopKeyModifiers: {
+      alt?: boolean | null;
+      cmd?: boolean | null;
+      ctrl?: boolean | null;
+      shift?: boolean | null;
+    };
+    DesktopKeyboardDownRequest: {
+      key: string;
+    };
+    DesktopKeyboardPressRequest: {
+      key: string;
+      modifiers?: components["schemas"]["DesktopKeyModifiers"] | null;
+    };
+    DesktopKeyboardTypeRequest: {
+      /** Format: int32 */
+      delayMs?: number | null;
+      text: string;
+    };
+    DesktopKeyboardUpRequest: {
+      key: string;
+    };
+    /** @enum {string} */
+    DesktopMouseButton: "left" | "middle" | "right";
+    DesktopMouseClickRequest: {
+      button?: components["schemas"]["DesktopMouseButton"] | null;
+      /** Format: int32 */
+      clickCount?: number | null;
+      /** Format: int32 */
+      x: number;
+      /** Format: int32 */
+      y: number;
+    };
+    DesktopMouseDownRequest: {
+      button?: components["schemas"]["DesktopMouseButton"] | null;
+      /** Format: int32 */
+      x?: number | null;
+      /** Format: int32 */
+      y?: number | null;
+    };
+    DesktopMouseDragRequest: {
+      button?: components["schemas"]["DesktopMouseButton"] | null;
+      /** Format: int32 */
+      endX: number;
+      /** Format: int32 */
+      endY: number;
+      /** Format: int32 */
+      startX: number;
+      /** Format: int32 */
+      startY: number;
+    };
+    DesktopMouseMoveRequest: {
+      /** Format: int32 */
+      x: number;
+      /** Format: int32 */
+      y: number;
+    };
+    DesktopMousePositionResponse: {
+      /** Format: int32 */
+      screen?: number | null;
+      window?: string | null;
+      /** Format: int32 */
+      x: number;
+      /** Format: int32 */
+      y: number;
+    };
+    DesktopMouseScrollRequest: {
+      /** Format: int32 */
+      deltaX?: number | null;
+      /** Format: int32 */
+      deltaY?: number | null;
+      /** Format: int32 */
+      x: number;
+      /** Format: int32 */
+      y: number;
+    };
+    DesktopMouseUpRequest: {
+      button?: components["schemas"]["DesktopMouseButton"] | null;
+      /** Format: int32 */
+      x?: number | null;
+      /** Format: int32 */
+      y?: number | null;
+    };
+    DesktopProcessInfo: {
+      logPath?: string | null;
+      name: string;
+      /** Format: int32 */
+      pid?: number | null;
+      running: boolean;
+    };
+    DesktopRecordingInfo: {
+      /** Format: int64 */
+      bytes: number;
+      endedAt?: string | null;
+      fileName: string;
+      id: string;
+      processId?: string | null;
+      startedAt: string;
+      status: components["schemas"]["DesktopRecordingStatus"];
+    };
+    DesktopRecordingListResponse: {
+      recordings: components["schemas"]["DesktopRecordingInfo"][];
+    };
+    DesktopRecordingStartRequest: {
+      /** Format: int32 */
+      fps?: number | null;
+    };
+    /** @enum {string} */
+    DesktopRecordingStatus: "recording" | "completed" | "failed";
+    DesktopRegionScreenshotQuery: {
+      format?: components["schemas"]["DesktopScreenshotFormat"] | null;
+      /** Format: int32 */
+      height: number;
+      /** Format: int32 */
+      quality?: number | null;
+      /** Format: float */
+      scale?: number | null;
+      /** Format: int32 */
+      width: number;
+      /** Format: int32 */
+      x: number;
+      /** Format: int32 */
+      y: number;
+    };
+    DesktopResolution: {
+      /** Format: int32 */
+      dpi?: number | null;
+      /** Format: int32 */
+      height: number;
+      /** Format: int32 */
+      width: number;
+    };
+    /** @enum {string} */
+    DesktopScreenshotFormat: "png" | "jpeg" | "webp";
+    DesktopScreenshotQuery: {
+      format?: components["schemas"]["DesktopScreenshotFormat"] | null;
+      /** Format: int32 */
+      quality?: number | null;
+      /** Format: float */
+      scale?: number | null;
+    };
+    DesktopStartRequest: {
+      /** Format: int32 */
+      dpi?: number | null;
+      /** Format: int32 */
+      height?: number | null;
+      /** Format: int32 */
+      width?: number | null;
+    };
+    /** @enum {string} */
+    DesktopState: "inactive" | "install_required" | "starting" | "active" | "stopping" | "failed";
+    DesktopStatusResponse: {
+      display?: string | null;
+      installCommand?: string | null;
+      lastError?: components["schemas"]["DesktopErrorInfo"] | null;
+      missingDependencies?: string[];
+      processes?: components["schemas"]["DesktopProcessInfo"][];
+      resolution?: components["schemas"]["DesktopResolution"] | null;
+      runtimeLogPath?: string | null;
+      startedAt?: string | null;
+      state: components["schemas"]["DesktopState"];
+    };
+    DesktopStreamStatusResponse: {
+      active: boolean;
+    };
+    DesktopWindowInfo: {
+      /** Format: int32 */
+      height: number;
+      id: string;
+      isActive: boolean;
+      title: string;
+      /** Format: int32 */
+      width: number;
+      /** Format: int32 */
+      x: number;
+      /** Format: int32 */
+      y: number;
+    };
+    DesktopWindowListResponse: {
+      windows: components["schemas"]["DesktopWindowInfo"][];
+    };
     /** @enum {string} */
     ErrorType: "invalid_request" | "conflict" | "unsupported_agent" | "agent_not_installed" | "install_failed" | "agent_process_exited" | "token_invalid" | "permission_denied" | "not_acceptable" | "unsupported_media_type" | "not_found" | "session_not_found" | "session_already_exists" | "mode_not_supported" | "stream_error" | "timeout";
     FsActionResponse: {
@@ -364,6 +762,7 @@ export interface components {
       exitedAtMs?: number | null;
       id: string;
       interactive: boolean;
+      owner: components["schemas"]["ProcessOwner"];
       /** Format: int32 */
       pid?: number | null;
       status: components["schemas"]["ProcessState"];
@@ -375,6 +774,9 @@ export interface components {
     };
     ProcessInputResponse: {
       bytesWritten: number;
+    };
+    ProcessListQuery: {
+      owner?: components["schemas"]["ProcessOwner"] | null;
     };
     ProcessListResponse: {
       processes: components["schemas"]["ProcessInfo"][];
@@ -402,6 +804,8 @@ export interface components {
     };
     /** @enum {string} */
     ProcessLogsStream: "stdout" | "stderr" | "combined" | "pty";
+    /** @enum {string} */
+    ProcessOwner: "user" | "desktop" | "system";
     ProcessRunRequest: {
       args?: string[];
       command: string;
@@ -811,6 +1215,850 @@ export interface operations {
       };
     };
   };
+  /**
+   * Get desktop display information.
+   * @description Performs a health-gated display query against the managed desktop and
+   * returns the current display identifier and resolution.
+   */
+  get_v1_desktop_display_info: {
+    responses: {
+      /** @description Desktop display information */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopDisplayInfoResponse"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or display query failed */
+      503: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Press and hold a desktop keyboard key.
+   * @description Performs a health-gated `xdotool keydown` operation against the managed
+   * desktop.
+   */
+  post_v1_desktop_keyboard_down: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopKeyboardDownRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop keyboard action result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopActionResponse"];
+        };
+      };
+      /** @description Invalid keyboard down request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Press a desktop keyboard shortcut.
+   * @description Performs a health-gated `xdotool key` operation against the managed
+   * desktop.
+   */
+  post_v1_desktop_keyboard_press: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopKeyboardPressRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop keyboard action result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopActionResponse"];
+        };
+      };
+      /** @description Invalid keyboard press request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Type desktop keyboard text.
+   * @description Performs a health-gated `xdotool type` operation against the managed
+   * desktop.
+   */
+  post_v1_desktop_keyboard_type: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopKeyboardTypeRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop keyboard action result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopActionResponse"];
+        };
+      };
+      /** @description Invalid keyboard type request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Release a desktop keyboard key.
+   * @description Performs a health-gated `xdotool keyup` operation against the managed
+   * desktop.
+   */
+  post_v1_desktop_keyboard_up: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopKeyboardUpRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop keyboard action result */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopActionResponse"];
+        };
+      };
+      /** @description Invalid keyboard up request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Click on the desktop.
+   * @description Performs a health-gated pointer move and click against the managed desktop
+   * and returns the resulting mouse position.
+   */
+  post_v1_desktop_mouse_click: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopMouseClickRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop mouse position after click */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopMousePositionResponse"];
+        };
+      };
+      /** @description Invalid mouse click request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Press and hold a desktop mouse button.
+   * @description Performs a health-gated optional pointer move followed by `xdotool mousedown`
+   * and returns the resulting mouse position.
+   */
+  post_v1_desktop_mouse_down: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopMouseDownRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop mouse position after button press */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopMousePositionResponse"];
+        };
+      };
+      /** @description Invalid mouse down request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Drag the desktop mouse.
+   * @description Performs a health-gated drag gesture against the managed desktop and
+   * returns the resulting mouse position.
+   */
+  post_v1_desktop_mouse_drag: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopMouseDragRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop mouse position after drag */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopMousePositionResponse"];
+        };
+      };
+      /** @description Invalid mouse drag request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Move the desktop mouse.
+   * @description Performs a health-gated absolute pointer move on the managed desktop and
+   * returns the resulting mouse position.
+   */
+  post_v1_desktop_mouse_move: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopMouseMoveRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop mouse position after move */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopMousePositionResponse"];
+        };
+      };
+      /** @description Invalid mouse move request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Get the current desktop mouse position.
+   * @description Performs a health-gated mouse position query against the managed desktop.
+   */
+  get_v1_desktop_mouse_position: {
+    responses: {
+      /** @description Desktop mouse position */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopMousePositionResponse"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input check failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Scroll the desktop mouse wheel.
+   * @description Performs a health-gated scroll gesture at the requested coordinates and
+   * returns the resulting mouse position.
+   */
+  post_v1_desktop_mouse_scroll: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopMouseScrollRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop mouse position after scroll */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopMousePositionResponse"];
+        };
+      };
+      /** @description Invalid mouse scroll request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Release a desktop mouse button.
+   * @description Performs a health-gated optional pointer move followed by `xdotool mouseup`
+   * and returns the resulting mouse position.
+   */
+  post_v1_desktop_mouse_up: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopMouseUpRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop mouse position after button release */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopMousePositionResponse"];
+        };
+      };
+      /** @description Invalid mouse up request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or input failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Start desktop recording.
+   * @description Starts an ffmpeg x11grab recording against the managed desktop and returns
+   * the created recording metadata.
+   */
+  post_v1_desktop_recording_start: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopRecordingStartRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop recording started */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopRecordingInfo"];
+        };
+      };
+      /** @description Desktop runtime is not ready or a recording is already active */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop recording failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Stop desktop recording.
+   * @description Stops the active desktop recording and returns the finalized recording
+   * metadata.
+   */
+  post_v1_desktop_recording_stop: {
+    responses: {
+      /** @description Desktop recording stopped */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopRecordingInfo"];
+        };
+      };
+      /** @description No active desktop recording */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop recording stop failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * List desktop recordings.
+   * @description Returns the current desktop recording catalog.
+   */
+  get_v1_desktop_recordings: {
+    responses: {
+      /** @description Desktop recordings */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopRecordingListResponse"];
+        };
+      };
+      /** @description Desktop recordings query failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Get desktop recording metadata.
+   * @description Returns metadata for a single desktop recording.
+   */
+  get_v1_desktop_recording: {
+    parameters: {
+      path: {
+        /** @description Desktop recording ID */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Desktop recording metadata */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopRecordingInfo"];
+        };
+      };
+      /** @description Unknown desktop recording */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete a desktop recording.
+   * @description Removes a completed desktop recording and its file from disk.
+   */
+  delete_v1_desktop_recording: {
+    parameters: {
+      path: {
+        /** @description Desktop recording ID */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Desktop recording deleted */
+      204: {
+        content: never;
+      };
+      /** @description Unknown desktop recording */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop recording is still active */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Download a desktop recording.
+   * @description Serves the recorded MP4 bytes for a completed desktop recording.
+   */
+  get_v1_desktop_recording_download: {
+    parameters: {
+      path: {
+        /** @description Desktop recording ID */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Desktop recording as MP4 bytes */
+      200: {
+        content: never;
+      };
+      /** @description Unknown desktop recording */
+      404: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Capture a full desktop screenshot.
+   * @description Performs a health-gated full-frame screenshot of the managed desktop and
+   * returns the requested image bytes.
+   */
+  get_v1_desktop_screenshot: {
+    parameters: {
+      query?: {
+        format?: components["schemas"]["DesktopScreenshotFormat"] | null;
+        quality?: number | null;
+        scale?: number | null;
+      };
+    };
+    responses: {
+      /** @description Desktop screenshot as image bytes */
+      200: {
+        content: never;
+      };
+      /** @description Invalid screenshot query */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or screenshot capture failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Capture a desktop screenshot region.
+   * @description Performs a health-gated screenshot crop against the managed desktop and
+   * returns the requested region image bytes.
+   */
+  get_v1_desktop_screenshot_region: {
+    parameters: {
+      query: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        format?: components["schemas"]["DesktopScreenshotFormat"] | null;
+        quality?: number | null;
+        scale?: number | null;
+      };
+    };
+    responses: {
+      /** @description Desktop screenshot region as image bytes */
+      200: {
+        content: never;
+      };
+      /** @description Invalid screenshot region */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or screenshot capture failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Start the private desktop runtime.
+   * @description Lazily launches the managed Xvfb/openbox stack, validates display health,
+   * and returns the resulting desktop status snapshot.
+   */
+  post_v1_desktop_start: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DesktopStartRequest"];
+      };
+    };
+    responses: {
+      /** @description Desktop runtime status after start */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopStatusResponse"];
+        };
+      };
+      /** @description Invalid desktop start request */
+      400: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime is already transitioning */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop API unsupported on this platform */
+      501: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime could not be started */
+      503: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Get desktop runtime status.
+   * @description Returns the current desktop runtime state, dependency status, active
+   * display metadata, and supervised process information.
+   */
+  get_v1_desktop_status: {
+    responses: {
+      /** @description Desktop runtime status */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopStatusResponse"];
+        };
+      };
+      /** @description Authentication required */
+      401: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Stop the private desktop runtime.
+   * @description Terminates the managed openbox/Xvfb/dbus processes owned by the desktop
+   * runtime and returns the resulting status snapshot.
+   */
+  post_v1_desktop_stop: {
+    responses: {
+      /** @description Desktop runtime status after stop */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopStatusResponse"];
+        };
+      };
+      /** @description Desktop runtime is already transitioning */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * Start desktop streaming.
+   * @description Enables desktop websocket streaming for the managed desktop.
+   */
+  post_v1_desktop_stream_start: {
+    responses: {
+      /** @description Desktop streaming started */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopStreamStatusResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Stop desktop streaming.
+   * @description Disables desktop websocket streaming for the managed desktop.
+   */
+  post_v1_desktop_stream_stop: {
+    responses: {
+      /** @description Desktop streaming stopped */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopStreamStatusResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Open a desktop websocket streaming session.
+   * @description Upgrades the connection to a websocket that streams JPEG desktop frames and
+   * accepts mouse and keyboard control frames.
+   */
+  get_v1_desktop_stream_ws: {
+    parameters: {
+      query?: {
+        /** @description Bearer token alternative for WS auth */
+        access_token?: string | null;
+      };
+    };
+    responses: {
+      /** @description WebSocket upgraded */
+      101: {
+        content: never;
+      };
+      /** @description Desktop runtime or streaming session is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop stream failed */
+      502: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
+  /**
+   * List visible desktop windows.
+   * @description Performs a health-gated visible-window enumeration against the managed
+   * desktop and returns the current window metadata.
+   */
+  get_v1_desktop_windows: {
+    responses: {
+      /** @description Visible desktop windows */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DesktopWindowListResponse"];
+        };
+      };
+      /** @description Desktop runtime is not ready */
+      409: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+      /** @description Desktop runtime health or window query failed */
+      503: {
+        content: {
+          "application/json": components["schemas"]["ProblemDetails"];
+        };
+      };
+    };
+  };
   get_v1_fs_entries: {
     parameters: {
       query?: {
@@ -966,6 +2214,11 @@ export interface operations {
    * by the runtime, sorted by process ID.
    */
   get_v1_processes: {
+    parameters: {
+      query?: {
+        owner?: components["schemas"]["ProcessOwner"] | null;
+      };
+    };
     responses: {
       /** @description List processes */
       200: {

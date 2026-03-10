@@ -33,7 +33,8 @@ pub(super) async fn require_token(
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "));
 
-    let allow_query_token = request.uri().path().ends_with("/terminal/ws");
+    let allow_query_token = request.uri().path().ends_with("/terminal/ws")
+        || request.uri().path().ends_with("/stream/ws");
     let query_token = if allow_query_token {
         request
             .uri()

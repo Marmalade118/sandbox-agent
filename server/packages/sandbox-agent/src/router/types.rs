@@ -425,6 +425,14 @@ pub enum ProcessState {
     Exited,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, ToSchema, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProcessOwner {
+    User,
+    Desktop,
+    System,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessInfo {
@@ -435,6 +443,7 @@ pub struct ProcessInfo {
     pub cwd: Option<String>,
     pub tty: bool,
     pub interactive: bool,
+    pub owner: ProcessOwner,
     pub status: ProcessState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pid: Option<u32>,
@@ -449,6 +458,13 @@ pub struct ProcessInfo {
 #[serde(rename_all = "camelCase")]
 pub struct ProcessListResponse {
     pub processes: Vec<ProcessInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema, IntoParams)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessListQuery {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<ProcessOwner>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, ToSchema, PartialEq, Eq)]

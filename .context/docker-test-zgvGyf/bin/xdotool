@@ -1,0 +1,57 @@
+#!/usr/bin/env sh
+set -eu
+state_dir="${SANDBOX_AGENT_DESKTOP_FAKE_STATE_DIR:?missing fake state dir}"
+state_file="${state_dir}/mouse"
+mkdir -p "$state_dir"
+if [ ! -f "$state_file" ]; then
+  printf '0 0\n' > "$state_file"
+fi
+
+read_state() {
+  read -r x y < "$state_file"
+}
+
+write_state() {
+  printf '%s %s\n' "$1" "$2" > "$state_file"
+}
+
+command="${1:-}"
+case "$command" in
+  getmouselocation)
+    read_state
+    printf 'X=%s\nY=%s\nSCREEN=0\nWINDOW=0\n' "$x" "$y"
+    ;;
+  mousemove)
+    shift
+    x="${1:-0}"
+    y="${2:-0}"
+    shift 2 || true
+    while [ "$#" -gt 0 ]; do
+      token="$1"
+      shift
+      case "$token" in
+        mousemove)
+          x="${1:-0}"
+          y="${2:-0}"
+          shift 2 || true
+          ;;
+        mousedown|mouseup)
+          shift 1 || true
+          ;;
+        click)
+          if [ "${1:-}" = "--repeat" ]; then
+            shift 2 || true
+          fi
+          shift 1 || true
+          ;;
+      esac
+    done
+    write_state "$x" "$y"
+    ;;
+  type|key)
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac

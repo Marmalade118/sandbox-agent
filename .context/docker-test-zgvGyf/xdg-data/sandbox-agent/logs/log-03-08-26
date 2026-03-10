@@ -1,0 +1,4 @@
+ts=2026-03-08T07:57:29.140584296Z level=info target=sandbox_agent::telemetry message="anonymous telemetry is enabled, disable with --no-telemetry"
+ts=2026-03-08T07:57:29.141203296Z level=info target=sandbox_agent::cli message="server listening" addr=0.0.0.0:3000
+ts=2026-03-08T07:57:29.298687421Z level=info target=sandbox_agent::router span=http.request span_path=http.request message=request method=GET uri=/v1/health
+ts=2026-03-08T07:57:29.302092338Z level=info target=sandbox_agent::router span=http.request span_path=http.request status="200 OK" latency_ms=3 method=GET uri=/v1/health
