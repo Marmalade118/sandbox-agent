@@ -10,6 +10,7 @@ import {
   initCreateSessionActivity,
   initEnsureAgentActivity,
   initEnsureNameActivity,
+  initExposeSandboxActivity,
   initFailedActivity,
   initStartSandboxInstanceActivity,
   initStartStatusSyncActivity,
@@ -93,6 +94,10 @@ const commandHandlers: Record<HandoffQueueName, WorkflowHandler> = {
         timeout: 60_000,
         run: async () => initStartSandboxInstanceActivity(loopCtx, body, sandbox, agent),
       });
+      await loopCtx.step(
+        "init-expose-sandbox",
+        async () => initExposeSandboxActivity(loopCtx, body, sandbox, sandboxInstanceReady),
+      );
       const session = await loopCtx.step({
         name: "init-create-session",
         timeout: 180_000,

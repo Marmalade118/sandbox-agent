@@ -3,7 +3,12 @@
 import type { FitAddon as GhosttyFitAddon, Terminal as GhosttyTerminal } from "ghostty-web";
 import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
-import type { SandboxAgent, TerminalErrorStatus, TerminalExitStatus } from "sandbox-agent";
+import type {
+  SandboxAgent,
+  TerminalErrorStatus,
+  TerminalExitStatus,
+  TerminalReadyStatus,
+} from "sandbox-agent";
 
 type ConnectionState = "connecting" | "ready" | "closed" | "error";
 
@@ -15,7 +20,9 @@ export interface ProcessTerminalProps {
   className?: string;
   style?: CSSProperties;
   terminalStyle?: CSSProperties;
+  statusBarStyleOverride?: CSSProperties;
   height?: number | string;
+  showStatusBar?: boolean;
   onExit?: (status: TerminalExitStatus) => void;
   onError?: (error: TerminalErrorStatus | Error) => void;
 }
@@ -96,7 +103,9 @@ export const ProcessTerminal = ({
   className,
   style,
   terminalStyle,
+  statusBarStyleOverride,
   height = 360,
+  showStatusBar = true,
   onExit,
   onError,
 }: ProcessTerminalProps) => {
@@ -174,7 +183,7 @@ export const ProcessTerminal = ({
         const nextSession = client.connectProcessTerminal(processId);
         session = nextSession;
 
-        nextSession.onReady((frame) => {
+        nextSession.onReady((frame: TerminalReadyStatus) => {
           if (cancelled || frame.type !== "ready") {
             return;
           }
@@ -184,14 +193,14 @@ export const ProcessTerminal = ({
           syncSize();
         });
 
-        nextSession.onData((bytes) => {
+        nextSession.onData((bytes: Uint8Array) => {
           if (cancelled || !terminal) {
             return;
           }
           terminal.write(bytes);
         });
 
-        nextSession.onExit((frame) => {
+        nextSession.onExit((frame: TerminalExitStatus) => {
           if (cancelled || frame.type !== "exit") {
             return;
           }
@@ -204,7 +213,7 @@ export const ProcessTerminal = ({
           onExit?.(frame);
         });
 
-        nextSession.onError((error) => {
+        nextSession.onError((error: TerminalErrorStatus | Error) => {
           if (cancelled) {
             return;
           }
@@ -250,10 +259,12 @@ export const ProcessTerminal = ({
 
   return (
     <div className={className} style={{ ...shellStyle, ...style }}>
-      <div style={statusBarStyle}>
-        <span style={{ color: getStatusColor(connectionState) }}>{statusMessage}</span>
-        {exitCode != null ? <span style={exitCodeStyle}>exit={exitCode}</span> : null}
-      </div>
+      {showStatusBar ? (
+        <div style={{ ...statusBarStyle, ...statusBarStyleOverride }}>
+          <span style={{ color: getStatusColor(connectionState) }}>{statusMessage}</span>
+          {exitCode != null ? <span style={exitCodeStyle}>exit={exitCode}</span> : null}
+        </div>
+      ) : null}
       <div
         ref={hostRef}
         role="presentation"
