@@ -55,11 +55,11 @@ const TranscriptMessageBody = memo(function TranscriptMessageBody({
                 borderBottomRightRadius: "4px",
               }
             : {
-                backgroundColor: "rgba(255, 255, 255, 0.06)",
-                border: `1px solid ${theme.colors.borderOpaque}`,
+                backgroundColor: "transparent",
+                border: "none",
                 color: "#e4e4e7",
-                borderBottomLeftRadius: "4px",
-                borderBottomRightRadius: "16px",
+                borderRadius: "0",
+                padding: "0",
               }),
         })}
       >
@@ -163,12 +163,6 @@ export const MessageList = memo(function MessageList({
     }),
     message: css({
       display: "flex",
-      '&[data-variant="user"]': {
-        justifyContent: "flex-end",
-      },
-      '&[data-variant="assistant"]': {
-        justifyContent: "flex-start",
-      },
     }),
     messageContent: messageContentClass,
     messageText: css({
@@ -193,6 +187,11 @@ export const MessageList = memo(function MessageList({
 
   return (
     <>
+      <style>{`
+        [data-variant="user"] > [data-slot="message-content"] {
+          margin-left: auto;
+        }
+      `}</style>
       {historyEvents.length > 0 ? <HistoryMinimap events={historyEvents} onSelect={onSelectHistoryEvent} /> : null}
       <div
         ref={scrollRef}

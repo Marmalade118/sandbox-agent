@@ -43,7 +43,7 @@ export const HistoryMinimap = memo(function HistoryMinimap({ events, onSelect }:
         >
           <div className={css({ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" })}>
             <LabelXSmall color={theme.colors.contentTertiary} $style={{ letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              Handoff Events
+              Task Events
             </LabelXSmall>
             <LabelXSmall color={theme.colors.contentTertiary}>{events.length}</LabelXSmall>
           </div>

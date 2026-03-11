@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { useStyletron } from "baseui";
 import { LabelSmall } from "baseui/typography";
-import { MailOpen } from "lucide-react";
+import { Clock, MailOpen } from "lucide-react";
 
 import { PanelHeaderBar } from "./ui";
 import { type AgentTab, type Handoff } from "./view-model";
@@ -46,7 +46,7 @@ export const TranscriptHeader = memo(function TranscriptHeader({
           }}
           className={css({
             all: "unset",
-            fontWeight: 600,
+            fontWeight: 500,
             fontSize: "14px",
             color: theme.colors.contentPrimary,
             borderBottom: "1px solid rgba(255, 255, 255, 0.3)",
@@ -58,7 +58,7 @@ export const TranscriptHeader = memo(function TranscriptHeader({
         <LabelSmall
           title="Rename"
           color={theme.colors.contentPrimary}
-          $style={{ fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", ":hover": { textDecoration: "underline" } }}
+          $style={{ fontWeight: 500, whiteSpace: "nowrap", cursor: "pointer", ":hover": { textDecoration: "underline" } }}
           onClick={() => onStartEditingField("title", handoff.title)}
         >
           {handoff.title}
@@ -113,6 +113,24 @@ export const TranscriptHeader = memo(function TranscriptHeader({
         )
       ) : null}
       <div className={css({ flex: 1 })} />
+      <div
+        className={css({
+          display: "flex",
+          alignItems: "center",
+          gap: "5px",
+          padding: "3px 10px",
+          borderRadius: "6px",
+          backgroundColor: "rgba(255, 255, 255, 0.05)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          fontSize: "11px",
+          fontWeight: 500,
+          color: theme.colors.contentSecondary,
+          whiteSpace: "nowrap",
+        })}
+      >
+        <Clock size={11} />
+        <span>847 min used</span>
+      </div>
       {activeTab ? (
         <button
           onClick={() => onSetActiveTabUnread(!activeTab.unread)}

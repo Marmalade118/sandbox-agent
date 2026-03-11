@@ -86,7 +86,7 @@ const DetailRail = styled("aside", ({ $theme }) => ({
 
 const FILTER_OPTIONS: SelectItem[] = [
   { id: "active", label: "Active + Unmapped" },
-  { id: "archived", label: "Archived Handoffs" },
+  { id: "archived", label: "Archived Tasks" },
   { id: "unmapped", label: "Unmapped Only" },
   { id: "all", label: "All Branches" },
 ];
@@ -394,7 +394,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
     refetchInterval: 2_500,
     queryFn: async () => {
       if (!selectedHandoffId) {
-        throw new Error("No handoff");
+        throw new Error("No task selected");
       }
       return backendClient.getHandoff(workspaceId, selectedHandoffId);
     },
@@ -532,7 +532,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
 
   const startSessionFromHandoff = async (): Promise<{ id: string; status: "running" | "idle" | "error" }> => {
     if (!selectedForSession || !activeSandbox?.sandboxId) {
-      throw new Error("No sandbox is available for this handoff");
+      throw new Error("No sandbox is available for this task");
     }
     return backendClient.createSandboxSession({
       workspaceId,
@@ -565,7 +565,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
   const sendPrompt = useMutation({
     mutationFn: async (prompt: string) => {
       if (!selectedForSession || !activeSandbox?.sandboxId) {
-        throw new Error("No sandbox is available for this handoff");
+        throw new Error("No sandbox is available for this task");
       }
       const sessionId = await ensureSessionForPrompt();
       await backendClient.sendSandboxPrompt({
@@ -834,7 +834,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
                 borderTop: `1px solid ${theme.colors.borderOpaque}`,
               })}
             >
-              <LabelXSmall color="contentSecondary">Handoffs</LabelXSmall>
+              <LabelXSmall color="contentSecondary">Tasks</LabelXSmall>
             </div>
           </PanelHeader>
 
@@ -845,7 +845,9 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
               </>
             ) : null}
 
-            {!handoffsQuery.isLoading && repoGroups.length === 0 ? <EmptyState>No repos or handoffs yet. Add a repo to start a workspace.</EmptyState> : null}
+            {!handoffsQuery.isLoading && repoGroups.length === 0 ? (
+              <EmptyState>No repos or tasks yet. Add a repo to start a workspace.</EmptyState>
+            ) : null}
 
             {repoGroups.map((group) => (
               <section
@@ -960,7 +962,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
                     }}
                     data-testid={group.repoId === createRepoId ? "handoff-create-open" : `handoff-create-open-${group.repoId}`}
                   >
-                    Create Handoff
+                    Create Task
                   </Button>
                 </div>
               </section>
@@ -1172,7 +1174,9 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
                                   <ParagraphSmall marginTop="0" marginBottom="0" color="contentSecondary">
                                     {formatRelativeAge(branch.updatedAt)}
                                   </ParagraphSmall>
-                                  <StatusPill kind={branch.handoffId ? "positive" : "warning"}>{branch.handoffId ? "handoff" : "unmapped"}</StatusPill>
+                                  <StatusPill kind={branch.handoffId ? "positive" : "warning"}>
+                                    {branch.handoffId ? "task" : "unmapped"}
+                                  </StatusPill>
                                   {branch.trackedInStack ? <StatusPill kind="neutral">stack</StatusPill> : null}
                                 </div>
                               </div>
@@ -1264,7 +1268,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
                                       }}
                                       data-testid={`repo-overview-create-${branchToken}`}
                                     >
-                                      Create Handoff
+                                      Create Task
                                     </Button>
                                   ) : null}
 
@@ -1302,7 +1306,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
                   >
                     <Bot size={16} />
                     <HeadingXSmall marginTop="0" marginBottom="0">
-                      {selectedForSession ? (selectedForSession.title ?? "Determining title...") : "No handoff selected"}
+                      {selectedForSession ? selectedForSession.title ?? "Determining title..." : "No task selected"}
                     </HeadingXSmall>
                     {selectedForSession ? <StatusPill kind={statusKind(selectedForSession.status)}>{selectedForSession.status}</StatusPill> : null}
                   </div>
@@ -1333,7 +1337,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
                 })}
               >
                 {!selectedForSession ? (
-                  <EmptyState>Select a handoff from the left sidebar.</EmptyState>
+                  <EmptyState>Select a task from the left sidebar.</EmptyState>
                 ) : (
                   <>
                     <div
@@ -1409,12 +1413,12 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
                               : !activeSandbox?.sandboxId
                                 ? selectedForSession.statusMessage
                                   ? `Sandbox unavailable: ${selectedForSession.statusMessage}`
-                                  : "This handoff is still provisioning its sandbox."
+                                  : "This task is still provisioning its sandbox."
                                 : staleSessionId
                                   ? `Session ${staleSessionId} is unavailable. Start a new session to continue.`
                                   : resolvedSessionId
                                     ? "No transcript events yet. Send a prompt to start this session."
-                                    : "No active session for this handoff."}
+                                    : "No active session for this task."}
                           </EmptyState>
                         ) : null}
 
@@ -1525,7 +1529,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
         <DetailRail>
           <PanelHeader>
             <HeadingSmall marginTop="0" marginBottom="0">
-              {repoOverviewMode ? "Repo Details" : "Handoff Details"}
+              {repoOverviewMode ? "Repo Details" : "Task Details"}
             </HeadingSmall>
           </PanelHeader>
 
@@ -1577,7 +1581,10 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
                         <MetaRow label="Parent" value={selectedBranchOverview.parentBranch ?? "-"} mono />
                         <MetaRow label="Commit" value={selectedBranchOverview.commitSha.slice(0, 10)} mono />
                         <MetaRow label="Diff" value={formatDiffStat(selectedBranchOverview.diffStat)} />
-                        <MetaRow label="Handoff" value={selectedBranchOverview.handoffTitle ?? selectedBranchOverview.handoffId ?? "-"} />
+                        <MetaRow
+                          label="Task"
+                          value={selectedBranchOverview.handoffTitle ?? selectedBranchOverview.handoffId ?? "-"}
+                        />
                       </div>
                     )}
                   </section>
@@ -1585,7 +1592,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
               )
             ) : !selectedForSession ? (
               <ParagraphSmall marginTop="0" marginBottom="0" color="contentSecondary">
-                No handoff selected.
+                No task selected.
               </ParagraphSmall>
             ) : (
               <>
@@ -1601,7 +1608,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
                       gap: theme.sizing.scale300,
                     })}
                   >
-                    <MetaRow label="Handoff" value={selectedForSession.handoffId} mono />
+                    <MetaRow label="Task" value={selectedForSession.handoffId} mono />
                     <MetaRow label="Sandbox" value={selectedForSession.activeSandboxId ?? "-"} mono />
                     <MetaRow label="Session" value={resolvedSessionId ?? "-"} mono />
                   </div>
@@ -1728,7 +1735,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
           }}
           overrides={modalOverrides}
         >
-          <ModalHeader>Create Handoff</ModalHeader>
+          <ModalHeader>Create Task</ModalHeader>
           <ModalBody>
             <div
               className={css({
@@ -1738,7 +1745,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
               })}
             >
               <ParagraphSmall marginTop="0" marginBottom="0" color="contentSecondary">
-                Pick a repo, describe the task, and the backend will create a handoff.
+                Pick a repo, describe the task, and the backend will create a task.
               </ParagraphSmall>
 
               <div>
@@ -1876,7 +1883,7 @@ export function WorkspaceDashboard({ workspaceId, selectedHandoffId, selectedRep
               }}
               data-testid="handoff-create-submit"
             >
-              Create Handoff
+              Create Task
             </Button>
           </ModalFooter>
         </Modal>

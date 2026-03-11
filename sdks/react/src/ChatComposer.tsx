@@ -26,6 +26,7 @@ export interface ChatComposerProps {
   rows?: number;
   textareaProps?: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "className" | "disabled" | "onChange" | "onKeyDown" | "placeholder" | "rows" | "value">;
   renderSubmitContent?: () => ReactNode;
+  renderFooter?: () => ReactNode;
 }
 
 const DEFAULT_CLASS_NAMES: ChatComposerClassNames = {
@@ -62,6 +63,7 @@ export const ChatComposer = ({
   rows = 1,
   textareaProps,
   renderSubmitContent,
+  renderFooter,
 }: ChatComposerProps) => {
   const resolvedClassNames = mergeClassNames(DEFAULT_CLASS_NAMES, classNameOverrides);
   const isSubmitDisabled = disabled || submitDisabled || (!allowEmptySubmit && message.trim().length === 0);
@@ -92,6 +94,7 @@ export const ChatComposer = ({
           rows={rows}
           disabled={disabled}
         />
+        {renderFooter?.()}
         <button
           type="submit"
           className={resolvedClassNames.submit}

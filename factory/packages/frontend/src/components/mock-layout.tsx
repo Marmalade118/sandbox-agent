@@ -352,7 +352,7 @@ const TranscriptPanel = memo(function TranscriptPanel({
   const changeModel = useCallback(
     (model: ModelId) => {
       if (!promptTab) {
-        throw new Error(`Unable to change model for handoff ${handoff.id} without an active prompt tab`);
+        throw new Error(`Unable to change model for task ${handoff.id} without an active prompt tab`);
       }
 
       void handoffWorkbenchClient.changeModel({
@@ -487,7 +487,9 @@ const TranscriptPanel = memo(function TranscriptPanel({
               }}
             >
               <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Create the first session</h2>
-              <p style={{ margin: 0, opacity: 0.75 }}>Sessions are where you chat with the agent. Start one now to send the first prompt on this handoff.</p>
+              <p style={{ margin: 0, opacity: 0.75 }}>
+                Sessions are where you chat with the agent. Start one now to send the first prompt on this task.
+              </p>
               <button
                 type="button"
                 onClick={addTab}
@@ -661,15 +663,15 @@ export function MockLayout({ workspaceId, selectedHandoffId, selectedSessionId }
     void (async () => {
       const repoId = activeHandoff?.repoId ?? viewModel.repos[0]?.id ?? "";
       if (!repoId) {
-        throw new Error("Cannot create a handoff without an available repo");
+        throw new Error("Cannot create a task without an available repo");
       }
 
-      const task = window.prompt("Describe the handoff task", "Investigate and implement the requested change");
+      const task = window.prompt("Describe the task", "Investigate and implement the requested change");
       if (!task) {
         return;
       }
 
-      const title = window.prompt("Optional handoff title", "")?.trim() || undefined;
+      const title = window.prompt("Optional task title", "")?.trim() || undefined;
       const branch = window.prompt("Optional branch name", "")?.trim() || undefined;
       const { handoffId, tabId } = await handoffWorkbenchClient.createHandoff({
         repoId,
@@ -692,7 +694,7 @@ export function MockLayout({ workspaceId, selectedHandoffId, selectedSessionId }
   const openDiffTab = useCallback(
     (path: string) => {
       if (!activeHandoff) {
-        throw new Error("Cannot open a diff tab without an active handoff");
+        throw new Error("Cannot open a diff tab without an active task");
       }
       setOpenDiffsByHandoff((current) => {
         const existing = sanitizeOpenDiffs(activeHandoff, current[activeHandoff.id]);
@@ -736,10 +738,10 @@ export function MockLayout({ workspaceId, selectedHandoffId, selectedSessionId }
     (id: string) => {
       const currentHandoff = handoffs.find((handoff) => handoff.id === id);
       if (!currentHandoff) {
-        throw new Error(`Unable to rename missing handoff ${id}`);
+        throw new Error(`Unable to rename missing task ${id}`);
       }
 
-      const nextTitle = window.prompt("Rename handoff", currentHandoff.title);
+      const nextTitle = window.prompt("Rename task", currentHandoff.title);
       if (nextTitle === null) {
         return;
       }
@@ -758,7 +760,7 @@ export function MockLayout({ workspaceId, selectedHandoffId, selectedSessionId }
     (id: string) => {
       const currentHandoff = handoffs.find((handoff) => handoff.id === id);
       if (!currentHandoff) {
-        throw new Error(`Unable to rename missing handoff ${id}`);
+        throw new Error(`Unable to rename missing task ${id}`);
       }
 
       const nextBranch = window.prompt("Rename branch", currentHandoff.branch ?? "");
@@ -778,14 +780,14 @@ export function MockLayout({ workspaceId, selectedHandoffId, selectedSessionId }
 
   const archiveHandoff = useCallback(() => {
     if (!activeHandoff) {
-      throw new Error("Cannot archive without an active handoff");
+      throw new Error("Cannot archive without an active task");
     }
     void handoffWorkbenchClient.archiveHandoff({ handoffId: activeHandoff.id });
   }, [activeHandoff]);
 
   const publishPr = useCallback(() => {
     if (!activeHandoff) {
-      throw new Error("Cannot publish PR without an active handoff");
+      throw new Error("Cannot publish PR without an active task");
     }
     void handoffWorkbenchClient.publishPr({ handoffId: activeHandoff.id });
   }, [activeHandoff]);
@@ -793,7 +795,7 @@ export function MockLayout({ workspaceId, selectedHandoffId, selectedSessionId }
   const revertFile = useCallback(
     (path: string) => {
       if (!activeHandoff) {
-        throw new Error("Cannot revert a file without an active handoff");
+        throw new Error("Cannot revert a file without an active task");
       }
       setOpenDiffsByHandoff((current) => ({
         ...current,
@@ -968,10 +970,10 @@ export function MockLayout({ workspaceId, selectedHandoffId, selectedSessionId }
                     gap: "12px",
                   }}
                 >
-                  <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Create your first handoff</h2>
+                  <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Create your first task</h2>
                   <p style={{ margin: 0, opacity: 0.75 }}>
                     {viewModel.repos.length > 0
-                      ? "Start from the sidebar to create a handoff on the first available repo."
+                      ? "Start from the sidebar to create a task on the first available repo."
                       : "No repos are available in this workspace yet."}
                   </p>
                   <button
@@ -989,7 +991,7 @@ export function MockLayout({ workspaceId, selectedHandoffId, selectedSessionId }
                       fontWeight: 600,
                     }}
                   >
-                    New handoff
+                    New task
                   </button>
                 </div>
               </div>
