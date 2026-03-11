@@ -95,7 +95,12 @@ const TranscriptMessageBody = memo(function TranscriptMessageBody({
           data-copy-action="true"
           onClick={() => onCopyMessage(message)}
           className={css({
-            all: "unset",
+            appearance: "none",
+            WebkitAppearance: "none",
+            background: "none",
+            border: "none",
+            padding: "0",
+            margin: "0",
             display: "inline-flex",
             alignItems: "center",
             gap: "5px",

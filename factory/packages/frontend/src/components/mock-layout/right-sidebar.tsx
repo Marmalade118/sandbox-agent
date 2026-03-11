@@ -150,7 +150,11 @@ export const RightSidebar = memo(function RightSidebar({
                 onPublishPr();
               }}
               className={css({
-                all: "unset",
+                appearance: "none",
+                WebkitAppearance: "none",
+                background: "none",
+                border: "none",
+                margin: "0",
                 boxSizing: "border-box",
                 display: "inline-flex",
                 alignItems: "center",
@@ -171,7 +175,11 @@ export const RightSidebar = memo(function RightSidebar({
             </button>
             <button
               className={css({
-                all: "unset",
+                appearance: "none",
+                WebkitAppearance: "none",
+                background: "none",
+                border: "none",
+                margin: "0",
                 boxSizing: "border-box",
                 display: "inline-flex",
                 alignItems: "center",
@@ -192,7 +200,11 @@ export const RightSidebar = memo(function RightSidebar({
             <button
               onClick={onArchive}
               className={css({
-                all: "unset",
+                appearance: "none",
+                WebkitAppearance: "none",
+                background: "none",
+                border: "none",
+                margin: "0",
                 boxSizing: "border-box",
                 display: "inline-flex",
                 alignItems: "center",
@@ -230,7 +242,11 @@ export const RightSidebar = memo(function RightSidebar({
           <button
             onClick={() => setRightTab("changes")}
             className={css({
-              all: "unset",
+              appearance: "none",
+              WebkitAppearance: "none",
+              background: "none",
+              border: "none",
+              margin: "0",
               boxSizing: "border-box",
               display: "inline-flex",
               alignItems: "center",
@@ -277,7 +293,11 @@ export const RightSidebar = memo(function RightSidebar({
           <button
             onClick={() => setRightTab("files")}
             className={css({
-              all: "unset",
+              appearance: "none",
+              WebkitAppearance: "none",
+              background: "none",
+              border: "none",
+              margin: "0",
               boxSizing: "border-box",
               display: "inline-flex",
               alignItems: "center",

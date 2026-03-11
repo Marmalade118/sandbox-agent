@@ -45,7 +45,13 @@ export const TranscriptHeader = memo(function TranscriptHeader({
             }
           }}
           className={css({
-            all: "unset",
+            appearance: "none",
+            WebkitAppearance: "none",
+            background: "none",
+            border: "none",
+            padding: "0",
+            margin: "0",
+            outline: "none",
             fontWeight: 500,
             fontSize: "14px",
             color: theme.colors.contentPrimary,
@@ -79,7 +85,11 @@ export const TranscriptHeader = memo(function TranscriptHeader({
               }
             }}
             className={css({
-              all: "unset",
+              appearance: "none",
+              WebkitAppearance: "none",
+              background: "none",
+              margin: "0",
+              outline: "none",
               padding: "2px 8px",
               borderRadius: "999px",
               border: "1px solid rgba(255, 255, 255, 0.3)",
@@ -136,7 +146,11 @@ export const TranscriptHeader = memo(function TranscriptHeader({
         <button
           onClick={() => onSetActiveTabUnread(!activeTab.unread)}
           className={css({
-            all: "unset",
+            appearance: "none",
+            WebkitAppearance: "none",
+            background: "none",
+            border: "none",
+            margin: "0",
             boxSizing: "border-box",
             display: "inline-flex",
             alignItems: "center",

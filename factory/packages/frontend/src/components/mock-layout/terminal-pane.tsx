@@ -48,10 +48,7 @@ function canOpenTerminal(process: SandboxProcessRecord | null | undefined): bool
 function defaultShellRequest(cwd?: string | null) {
   return {
     command: "/bin/bash",
-    args: [
-      "-lc",
-      'if [ -n "$SHELL" ] && [ -x "$SHELL" ]; then exec "$SHELL" -l; fi; if [ -x /bin/zsh ]; then exec /bin/zsh -l; fi; exec /bin/bash -l',
-    ],
+    args: ["-lc", 'if [ -n "$SHELL" ] && [ -x "$SHELL" ]; then exec "$SHELL" -l; fi; if [ -x /bin/zsh ]; then exec /bin/zsh -l; fi; exec /bin/bash -l'],
     cwd: cwd ?? undefined,
     interactive: true,
     tty: true,
@@ -105,13 +102,7 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
   }, [handoffQuery.data]);
 
   const connectionQuery = useQuery({
-    queryKey: [
-      "mock-layout",
-      "sandbox-agent-connection",
-      workspaceId,
-      activeSandbox?.providerId ?? "",
-      activeSandbox?.sandboxId ?? "",
-    ],
+    queryKey: ["mock-layout", "sandbox-agent-connection", workspaceId, activeSandbox?.providerId ?? "", activeSandbox?.sandboxId ?? ""],
     enabled: Boolean(activeSandbox?.sandboxId),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
@@ -120,22 +111,12 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
         throw new Error("Cannot load a sandbox connection without an active sandbox.");
       }
 
-      return await backendClient.getSandboxAgentConnection(
-        workspaceId,
-        activeSandbox.providerId,
-        activeSandbox.sandboxId,
-      );
+      return await backendClient.getSandboxAgentConnection(workspaceId, activeSandbox.providerId, activeSandbox.sandboxId);
     },
   });
 
   const processesQuery = useQuery({
-    queryKey: [
-      "mock-layout",
-      "sandbox-processes",
-      workspaceId,
-      activeSandbox?.providerId ?? "",
-      activeSandbox?.sandboxId ?? "",
-    ],
+    queryKey: ["mock-layout", "sandbox-processes", workspaceId, activeSandbox?.providerId ?? "", activeSandbox?.sandboxId ?? ""],
     enabled: Boolean(activeSandbox?.sandboxId),
     staleTime: 0,
     refetchOnWindowFocus: true,
@@ -145,11 +126,7 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
         throw new Error("Cannot load processes without an active sandbox.");
       }
 
-      return await backendClient.listSandboxProcesses(
-        workspaceId,
-        activeSandbox.providerId,
-        activeSandbox.sandboxId,
-      );
+      return await backendClient.listSandboxProcesses(workspaceId, activeSandbox.providerId, activeSandbox.sandboxId);
     },
   });
 
@@ -158,14 +135,9 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
       return;
     }
 
-    return backendClient.subscribeSandboxProcesses(
-      workspaceId,
-      activeSandbox.providerId,
-      activeSandbox.sandboxId,
-      () => {
-        void processesQuery.refetch();
-      },
-    );
+    return backendClient.subscribeSandboxProcesses(workspaceId, activeSandbox.providerId, activeSandbox.sandboxId, () => {
+      void processesQuery.refetch();
+    });
   }, [activeSandbox?.providerId, activeSandbox?.sandboxId, processesQuery, workspaceId]);
 
   useEffect(() => {
@@ -241,10 +213,7 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
   }, [handoffId]);
 
   const processes = processesQuery.data?.processes ?? [];
-  const selectedProcess = useMemo(
-    () => processes.find((process) => process.id === selectedProcessId) ?? null,
-    [processes, selectedProcessId],
-  );
+  const selectedProcess = useMemo(() => processes.find((process) => process.id === selectedProcessId) ?? null, [processes, selectedProcessId]);
 
   useEffect(() => {
     if (!processes.length) {
@@ -270,21 +239,11 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
     setLogsLoading(true);
     setLogsError(null);
     try {
-      const response = await backendClient.getSandboxProcessLogs(
-        workspaceId,
-        activeSandbox.providerId,
-        activeSandbox.sandboxId,
-        selectedProcess.id,
-        {
-          stream: selectedProcess.tty ? "pty" : "combined",
-          tail: 200,
-        },
-      );
-      setLogsText(
-        response.entries
-          .map((entry: ProcessLogResponseEntry) => decodeBase64Utf8(entry.data))
-          .join(""),
-      );
+      const response = await backendClient.getSandboxProcessLogs(workspaceId, activeSandbox.providerId, activeSandbox.sandboxId, selectedProcess.id, {
+        stream: selectedProcess.tty ? "pty" : "combined",
+        tail: 200,
+      });
+      setLogsText(response.entries.map((entry: ProcessLogResponseEntry) => decodeBase64Utf8(entry.data)).join(""));
     } catch (error) {
       setLogsText("");
       setLogsError(error instanceof Error ? error.message : String(error));
@@ -386,17 +345,7 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
     } finally {
       setCreatingProcess(false);
     }
-  }, [
-    activeSandbox,
-    argsText,
-    command,
-    cwdOverride,
-    interactive,
-    openTerminalTab,
-    processesQuery,
-    tty,
-    workspaceId,
-  ]);
+  }, [activeSandbox, argsText, command, cwdOverride, interactive, openTerminalTab, processesQuery, tty, workspaceId]);
 
   const handleProcessAction = useCallback(
     async (processId: string, action: "stop" | "kill" | "delete") => {
@@ -407,32 +356,13 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
       setActingProcessId(`${action}:${processId}`);
       try {
         if (action === "stop") {
-          await backendClient.stopSandboxProcess(
-            workspaceId,
-            activeSandbox.providerId,
-            activeSandbox.sandboxId,
-            processId,
-            { waitMs: 2_000 },
-          );
+          await backendClient.stopSandboxProcess(workspaceId, activeSandbox.providerId, activeSandbox.sandboxId, processId, { waitMs: 2_000 });
         } else if (action === "kill") {
-          await backendClient.killSandboxProcess(
-            workspaceId,
-            activeSandbox.providerId,
-            activeSandbox.sandboxId,
-            processId,
-            { waitMs: 2_000 },
-          );
+          await backendClient.killSandboxProcess(workspaceId, activeSandbox.providerId, activeSandbox.sandboxId, processId, { waitMs: 2_000 });
         } else {
-          await backendClient.deleteSandboxProcess(
-            workspaceId,
-            activeSandbox.providerId,
-            activeSandbox.sandboxId,
-            processId,
-          );
+          await backendClient.deleteSandboxProcess(workspaceId, activeSandbox.providerId, activeSandbox.sandboxId, processId);
           setProcessTabs((current) => current.filter((tab) => tab.processId !== processId));
-          setActiveTabId((current) =>
-            current.startsWith("terminal:") && current === `terminal:${processId}` ? PROCESSES_TAB_ID : current,
-          );
+          setActiveTabId((current) => (current.startsWith("terminal:") && current === `terminal:${processId}` ? PROCESSES_TAB_ID : current));
         }
         await processesQuery.refetch();
       } catch (error) {
@@ -445,9 +375,9 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
   );
 
   const processTabsById = useMemo(() => new Map(processTabs.map((tab) => [tab.id, tab])), [processTabs]);
-  const activeProcessTab = activeTabId === PROCESSES_TAB_ID ? null : processTabsById.get(activeTabId) ?? null;
+  const activeProcessTab = activeTabId === PROCESSES_TAB_ID ? null : (processTabsById.get(activeTabId) ?? null);
   const activeTerminalProcess = useMemo(
-    () => (activeProcessTab ? processes.find((process) => process.id === activeProcessTab.processId) ?? null : null),
+    () => (activeProcessTab ? (processes.find((process) => process.id === activeProcessTab.processId) ?? null) : null),
     [activeProcessTab, processes],
   );
 
@@ -473,7 +403,10 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
   });
 
   const smallButtonClassName = css({
-    all: "unset",
+    appearance: "none",
+    WebkitAppearance: "none",
+    background: "none",
+    margin: "0",
     display: "inline-flex",
     alignItems: "center",
     gap: "6px",
@@ -545,21 +478,11 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
               </span>
             </div>
             <div className={css({ display: "flex", alignItems: "center", gap: "8px" })}>
-              <button
-                type="button"
-                className={smallButtonClassName}
-                onClick={() => void processesQuery.refetch()}
-                disabled={processesQuery.isFetching}
-              >
+              <button type="button" className={smallButtonClassName} onClick={() => void processesQuery.refetch()} disabled={processesQuery.isFetching}>
                 {processesQuery.isFetching ? <Loader2 size={12} className={css({ animation: "hf-spin 0.8s linear infinite" })} /> : <RefreshCw size={12} />}
                 Refresh
               </button>
-              <button
-                type="button"
-                className={smallButtonClassName}
-                onClick={() => void spawnTerminal()}
-                disabled={creatingProcess}
-              >
+              <button type="button" className={smallButtonClassName} onClick={() => void spawnTerminal()} disabled={creatingProcess}>
                 {creatingProcess ? <Loader2 size={12} className={css({ animation: "hf-spin 0.8s linear infinite" })} /> : <SquareTerminal size={12} />}
                 New Terminal
               </button>
@@ -656,21 +579,12 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
               />
               tty
             </label>
-            <button
-              type="button"
-              className={smallButtonClassName}
-              onClick={() => void createCustomProcess()}
-              disabled={creatingProcess}
-            >
+            <button type="button" className={smallButtonClassName} onClick={() => void createCustomProcess()} disabled={creatingProcess}>
               Create Process
             </button>
           </div>
 
-          {createError ? (
-            <div className={css({ fontSize: "11px", color: "#fda4af" })}>
-              {createError}
-            </div>
-          ) : null}
+          {createError ? <div className={css({ fontSize: "11px", color: "#fda4af" })}>{createError}</div> : null}
         </div>
 
         <div
@@ -688,9 +602,7 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
             })}
           >
             {processes.length === 0 ? (
-              <div className={css({ padding: "16px", fontSize: "12px", color: "rgba(255,255,255,0.56)" })}>
-                No processes yet.
-              </div>
+              <div className={css({ padding: "16px", fontSize: "12px", color: "rgba(255,255,255,0.56)" })}>No processes yet.</div>
             ) : (
               processes.map((process) => {
                 const isSelected = selectedProcessId === process.id;
@@ -743,7 +655,16 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
                         {formatCommandSummary(process)}
                       </span>
                     </div>
-                    <div className={css({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", fontSize: "10px", color: "rgba(255,255,255,0.5)" })}>
+                    <div
+                      className={css({
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        fontSize: "10px",
+                        color: "rgba(255,255,255,0.5)",
+                      })}
+                    >
                       <span>{process.pid ? `PID ${process.pid}` : "PID ?"}</span>
                       <span>{process.id.slice(0, 8)}</span>
                     </div>
@@ -822,12 +743,8 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
                   })}
                 >
                   <div className={css({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" })}>
-                    <strong className={css({ fontSize: "12px", color: "#f4f4f5" })}>
-                      {formatCommandSummary(selectedProcess)}
-                    </strong>
-                    <span className={css({ fontSize: "10px", color: "rgba(255,255,255,0.56)" })}>
-                      {selectedProcess.status}
-                    </span>
+                    <strong className={css({ fontSize: "12px", color: "#f4f4f5" })}>{formatCommandSummary(selectedProcess)}</strong>
+                    <span className={css({ fontSize: "10px", color: "rgba(255,255,255,0.56)" })}>{selectedProcess.status}</span>
                   </div>
                   <div className={css({ display: "flex", flexWrap: "wrap", gap: "10px", fontSize: "10px", color: "rgba(255,255,255,0.5)" })}>
                     <span>{selectedProcess.pid ? `PID ${selectedProcess.pid}` : "PID ?"}</span>
@@ -836,16 +753,22 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
                   </div>
                 </div>
                 <div className={css({ minHeight: 0, flex: 1, display: "flex", flexDirection: "column" })}>
-                  <div className={css({ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.08)" })}>
+                  <div
+                    className={css({
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 14px",
+                      borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    })}
+                  >
                     <span className={css({ fontSize: "11px", color: "rgba(255,255,255,0.68)" })}>Logs</span>
                     <button type="button" className={smallButtonClassName} onClick={() => void refreshLogs()} disabled={logsLoading}>
                       {logsLoading ? <Loader2 size={11} className={css({ animation: "hf-spin 0.8s linear infinite" })} /> : <RefreshCw size={11} />}
                       Refresh
                     </button>
                   </div>
-                  {logsError ? (
-                    <div className={css({ padding: "14px", fontSize: "11px", color: "#fda4af" })}>{logsError}</div>
-                  ) : null}
+                  {logsError ? <div className={css({ padding: "14px", fontSize: "11px", color: "#fda4af" })}>{logsError}</div> : null}
                   <pre
                     className={css({
                       flex: 1,
@@ -897,10 +820,7 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
         <div className={emptyBodyClassName}>
           <div className={emptyCopyClassName}>
             <strong>Interactive terminal transport is unavailable.</strong>
-            <span>
-              This tab was created through the standard process API flow. Mock mode does not open a live terminal
-              transport.
-            </span>
+            <span>This tab was created through the standard process API flow. Mock mode does not open a live terminal transport.</span>
           </div>
         </div>
       );
@@ -908,7 +828,18 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
 
     return (
       <div className={css({ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", backgroundColor: "#080506" })}>
-        <div className={css({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: "11px", color: "rgba(255,255,255,0.56)" })}>
+        <div
+          className={css({
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+            padding: "10px 14px",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            fontSize: "11px",
+            color: "rgba(255,255,255,0.56)",
+          })}
+        >
           <span>{formatCommandSummary(activeTerminalProcess)}</span>
           <span>{activeTerminalProcess.id.slice(0, 8)}</span>
         </div>
@@ -1001,7 +932,12 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
           type="button"
           aria-label="Terminal controls"
           className={css({
-            all: "unset",
+            appearance: "none",
+            WebkitAppearance: "none",
+            background: "none",
+            border: "none",
+            padding: "0",
+            margin: "0",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1017,7 +953,11 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
           type="button"
           onClick={() => setActiveTabId(PROCESSES_TAB_ID)}
           className={css({
-            all: "unset",
+            appearance: "none",
+            WebkitAppearance: "none",
+            background: "none",
+            border: "none",
+            margin: "0",
             position: "relative",
             display: "flex",
             alignItems: "center",
@@ -1057,7 +997,11 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
               type="button"
               onClick={() => setActiveTabId(tab.id)}
               className={css({
-                all: "unset",
+                appearance: "none",
+                WebkitAppearance: "none",
+                background: "none",
+                border: "none",
+                margin: "0",
                 position: "relative",
                 display: "flex",
                 alignItems: "center",
@@ -1088,7 +1032,12 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
               aria-label={`Close ${tab.title}`}
               onClick={() => closeTerminalTab(tab.id)}
               className={css({
-                all: "unset",
+                appearance: "none",
+                WebkitAppearance: "none",
+                background: "none",
+                border: "none",
+                padding: "0",
+                margin: "0",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -1110,7 +1059,12 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
           onClick={() => void spawnTerminal()}
           disabled={!activeSandbox?.sandboxId || creatingProcess}
           className={css({
-            all: "unset",
+            appearance: "none",
+            WebkitAppearance: "none",
+            background: "none",
+            border: "none",
+            padding: "0",
+            margin: "0",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1132,6 +1086,4 @@ export function TerminalPane({ workspaceId, handoffId }: TerminalPaneProps) {
   );
 }
 
-type ProcessLogResponseEntry = Awaited<
-  ReturnType<typeof backendClient.getSandboxProcessLogs>
->["entries"][number];
+type ProcessLogResponseEntry = Awaited<ReturnType<typeof backendClient.getSandboxProcessLogs>>["entries"][number];

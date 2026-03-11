@@ -130,7 +130,13 @@ export const TabStrip = memo(function TabStrip({
                     }
                   }}
                   className={css({
-                    all: "unset",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    background: "none",
+                    border: "none",
+                    padding: "0",
+                    margin: "0",
+                    outline: "none",
                     minWidth: "72px",
                     maxWidth: "180px",
                     fontSize: "11px",

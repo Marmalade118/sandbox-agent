@@ -138,7 +138,10 @@ export const ModelPicker = memo(function ModelPicker({
       <div className={css({ display: "inline-flex" })}>
         <button
           className={css({
-            all: "unset",
+            appearance: "none",
+            WebkitAppearance: "none",
+            background: "none",
+            margin: "0",
             display: "flex",
             alignItems: "center",
             gap: "4px",
