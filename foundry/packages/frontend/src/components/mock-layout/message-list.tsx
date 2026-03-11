@@ -43,15 +43,15 @@ const TranscriptMessageBody = memo(function TranscriptMessageBody({
     >
       <div
         className={css({
-          maxWidth: "100%",
-          padding: "12px 16px",
-          borderTopLeftRadius: "16px",
-          borderTopRightRadius: "16px",
+          maxWidth: "80%",
           ...(isUser
             ? {
+                padding: "12px 16px",
                 backgroundColor: "rgba(255, 255, 255, 0.10)",
                 color: "#e4e4e7",
-                borderBottomLeftRadius: "16px",
+                borderTopLeftRadius: "18px",
+                borderTopRightRadius: "18px",
+                borderBottomLeftRadius: "18px",
                 borderBottomRightRadius: "4px",
               }
             : {
@@ -155,7 +155,7 @@ export const MessageList = memo(function MessageList({
   );
 
   const messageContentClass = css({
-    maxWidth: "80%",
+    maxWidth: "100%",
     display: "flex",
     flexDirection: "column",
   });
@@ -201,7 +201,7 @@ export const MessageList = memo(function MessageList({
       <div
         ref={scrollRef}
         className={css({
-          padding: "16px 220px 16px 44px",
+          padding: "16px 20px 16px 20px",
           display: "flex",
           flexDirection: "column",
           flex: 1,

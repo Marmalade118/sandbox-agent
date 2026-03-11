@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState, type MouseEvent } from "react";
 import { useStyletron } from "baseui";
 import { LabelSmall } from "baseui/typography";
-import { Archive, ArrowUpFromLine, ChevronRight, FileCode, FilePlus, FileX, FolderOpen, GitPullRequest } from "lucide-react";
+import { Archive, ArrowUpFromLine, ChevronRight, FileCode, FilePlus, FileX, FolderOpen, GitPullRequest, PanelRight } from "lucide-react";
 
 import { type ContextMenuItem, ContextMenuOverlay, PanelHeaderBar, SPanel, ScrollBody, useContextMenu } from "./ui";
 import { type FileTreeNode, type Task, diffTabId } from "./view-model";
@@ -93,6 +93,7 @@ export const RightSidebar = memo(function RightSidebar({
   onArchive,
   onRevertFile,
   onPublishPr,
+  onToggleSidebar,
 }: {
   task: Task;
   activeTabId: string | null;
@@ -100,6 +101,7 @@ export const RightSidebar = memo(function RightSidebar({
   onArchive: () => void;
   onRevertFile: (path: string) => void;
   onPublishPr: () => void;
+  onToggleSidebar?: () => void;
 }) {
   const [css, theme] = useStyletron();
   const [rightTab, setRightTab] = useState<"changes" | "files">("changes");
@@ -171,7 +173,7 @@ export const RightSidebar = memo(function RightSidebar({
               })}
             >
               <GitPullRequest size={12} style={{ flexShrink: 0 }} />
-              {pullRequestUrl ? "Open PR" : "Publish PR"}
+              <span className={css({ "@media screen and (max-width: 768px)": { display: "none" } })}>{pullRequestUrl ? "Open PR" : "Publish PR"}</span>
             </button>
             <button
               className={css({
@@ -195,7 +197,8 @@ export const RightSidebar = memo(function RightSidebar({
                 ":hover": { backgroundColor: "rgba(255, 255, 255, 0.06)", color: "#ffffff" },
               })}
             >
-              <ArrowUpFromLine size={12} style={{ flexShrink: 0 }} /> Push
+              <ArrowUpFromLine size={12} style={{ flexShrink: 0 }} />{" "}
+              <span className={css({ "@media screen and (max-width: 768px)": { display: "none" } })}>Push</span>
             </button>
             <button
               onClick={onArchive}
@@ -220,13 +223,49 @@ export const RightSidebar = memo(function RightSidebar({
                 ":hover": { backgroundColor: "rgba(255, 255, 255, 0.06)", color: "#ffffff" },
               })}
             >
-              <Archive size={12} style={{ flexShrink: 0 }} /> Archive
+              <Archive size={12} style={{ flexShrink: 0 }} />{" "}
+              <span className={css({ "@media screen and (max-width: 768px)": { display: "none" } })}>Archive</span>
             </button>
+          </div>
+        ) : null}
+        {onToggleSidebar ? (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={onToggleSidebar}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") onToggleSidebar();
+            }}
+            className={css({
+              width: "26px",
+              height: "26px",
+              borderRadius: "6px",
+              color: "#71717a",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              ":hover": { color: "#a1a1aa", backgroundColor: "rgba(255, 255, 255, 0.06)" },
+            })}
+          >
+            <PanelRight size={14} />
           </div>
         ) : null}
       </PanelHeaderBar>
 
-      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", borderTop: "1px solid rgba(255, 255, 255, 0.10)" }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          borderTop: "1px solid rgba(255, 255, 255, 0.10)",
+          borderRight: "1px solid rgba(255, 255, 255, 0.10)",
+          borderTopRightRadius: "12px",
+          overflow: "hidden",
+        }}
+      >
         <div
           className={css({
             display: "flex",
@@ -237,6 +276,7 @@ export const RightSidebar = memo(function RightSidebar({
             height: "41px",
             minHeight: "41px",
             flexShrink: 0,
+            borderTopRightRadius: "12px",
           })}
         >
           <button

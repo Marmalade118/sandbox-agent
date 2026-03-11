@@ -205,4 +205,6 @@ export const PanelHeaderBar = styled("div", ({ $theme }) => ({
   backgroundColor: $theme.colors.backgroundTertiary,
   gap: "8px",
   flexShrink: 0,
+  position: "relative" as const,
+  zIndex: 9999,
 }));

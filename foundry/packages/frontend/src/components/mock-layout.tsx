@@ -2,6 +2,8 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useNavigate } from "@tanstack/react-router";
 import { useStyletron } from "baseui";
 
+import { PanelLeft, PanelRight } from "lucide-react";
+
 import { DiffContent } from "./mock-layout/diff-content";
 import { MessageList } from "./mock-layout/message-list";
 import { PromptComposer } from "./mock-layout/prompt-composer";
@@ -454,8 +456,11 @@ const TranscriptPanel = memo(function TranscriptPanel({
           backgroundColor: "#09090b",
           overflow: "hidden",
           borderTopLeftRadius: "12px",
+          borderBottomLeftRadius: "24px",
           borderLeft: "1px solid rgba(255, 255, 255, 0.10)",
+          borderRight: "1px solid rgba(255, 255, 255, 0.10)",
           borderTop: "1px solid rgba(255, 255, 255, 0.10)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.10)",
         }}
       >
         <TabStrip
@@ -641,6 +646,7 @@ const RightRail = memo(function RightRail({
   onArchive,
   onRevertFile,
   onPublishPr,
+  onToggleSidebar,
 }: {
   workspaceId: string;
   task: Task;
@@ -649,6 +655,7 @@ const RightRail = memo(function RightRail({
   onArchive: () => void;
   onRevertFile: (path: string) => void;
   onPublishPr: () => void;
+  onToggleSidebar?: () => void;
 }) {
   const [css] = useStyletron();
   const railRef = useRef<HTMLDivElement>(null);
@@ -728,6 +735,8 @@ const RightRail = memo(function RightRail({
           minHeight: `${RIGHT_RAIL_MIN_SECTION_HEIGHT}px`,
           flex: 1,
           minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
         })}
       >
         <RightSidebar
@@ -737,6 +746,7 @@ const RightRail = memo(function RightRail({
           onArchive={onArchive}
           onRevertFile={onRevertFile}
           onPublishPr={onPublishPr}
+          onToggleSidebar={onToggleSidebar}
         />
       </div>
       <div
@@ -750,6 +760,7 @@ const RightRail = memo(function RightRail({
           cursor: "ns-resize",
           position: "relative",
           backgroundColor: "#050505",
+          borderRight: "1px solid rgba(255, 255, 255, 0.10)",
           ":before": {
             content: '""',
             position: "absolute",
@@ -769,6 +780,9 @@ const RightRail = memo(function RightRail({
           minHeight: `${RIGHT_RAIL_MIN_SECTION_HEIGHT}px`,
           backgroundColor: "#080506",
           overflow: "hidden",
+          borderBottomRightRadius: "12px",
+          borderRight: "1px solid rgba(255, 255, 255, 0.10)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.10)",
         })}
       >
         <TerminalPane workspaceId={workspaceId} taskId={task.id} />
@@ -896,6 +910,8 @@ export function MockLayout({ workspaceId, selectedTaskId, selectedSessionId }: M
   const leftWidthRef = useRef(leftWidth);
   const rightWidthRef = useRef(rightWidth);
   const autoCreatingSessionForTaskRef = useRef<Set<string>>(new Set());
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
 
   useEffect(() => {
     leftWidthRef.current = leftWidth;
@@ -1195,100 +1211,330 @@ export function MockLayout({ workspaceId, selectedTaskId, selectedSessionId }: M
     },
     [activeTask, lastAgentTabIdByTask],
   );
+
+  const dismissStarRepoPrompt = useCallback(() => {
+    setStarRepoError(null);
+    try {
+      globalThis.localStorage?.setItem(STAR_SANDBOX_AGENT_REPO_STORAGE_KEY, "dismissed");
+    } catch {
+      // ignore storage failures
+    }
+    setStarRepoPromptOpen(false);
+  }, []);
+
+  const starSandboxAgentRepo = useCallback(() => {
+    setStarRepoPending(true);
+    setStarRepoError(null);
+    void backendClient
+      .starSandboxAgentRepo(workspaceId)
+      .then(() => {
+        try {
+          globalThis.localStorage?.setItem(STAR_SANDBOX_AGENT_REPO_STORAGE_KEY, "completed");
+        } catch {
+          // ignore storage failures
+        }
+        setStarRepoPromptOpen(false);
+      })
+      .catch((error) => {
+        setStarRepoError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        setStarRepoPending(false);
+      });
+  }, [workspaceId]);
+
+  const starRepoPrompt = starRepoPromptOpen ? (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 10000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+        background: "rgba(0, 0, 0, 0.68)",
+      }}
+      data-testid="onboarding-star-repo-modal"
+    >
+      <div
+        style={{
+          width: "min(440px, 100%)",
+          border: "1px solid rgba(255, 255, 255, 0.10)",
+          borderRadius: "12px",
+          background: "rgba(24, 24, 27, 0.98)",
+          backdropFilter: "blur(16px)",
+          boxShadow: "0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04)",
+          padding: "28px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "20px",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "11px",
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              fontWeight: 600,
+              color: "rgba(255, 255, 255, 0.4)",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 130 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="1" width="126" height="126" rx="44" fill="#0F0F0F" />
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M88.0429 44.2658C89.3803 43.625 90.8907 44.1955 91.5731 45.3776C92.2556 46.5596 91.9945 48.1529 90.7709 48.9907L72.3923 62.885C71.8013 63.2262 71.4248 63.7062 71.1029 64.2861C70.781 64.8659 70.5554 65.3922 70.5443 66.0553L67.7403 88.9495C67.521 90.3894 66.4114 91.423 64.9867 91.4576C63.5619 91.4922 62.3731 90.3429 62.24 88.9751L59.3859 66.0642C59.3971 65.4011 59.2126 64.8489 58.8714 64.2579C58.5302 63.6669 58.1442 63.231 57.5643 62.9091L39.15 48.9819C38.032 48.1828 37.6311 46.5786 38.3734 45.362C39.1157 44.1454 40.5656 43.7013 41.9223 44.2314L63.1512 53.2502C63.731 53.5721 64.2996 53.6398 64.9627 53.651C65.6259 53.6622 66.2298 53.5761 66.8208 53.2349L88.0429 44.2658Z"
+                fill="white"
+              />
+              <rect x="19.25" y="18.25" width="91.5" height="91.5" rx="25.75" stroke="#F0F0F0" strokeWidth="8.5" />
+            </svg>
+            Welcome to Foundry
+          </div>
+          <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 500, lineHeight: 1.3 }}>Support Sandbox Agent</h2>
+          <p style={{ margin: 0, color: "rgba(255, 255, 255, 0.55)", fontSize: "13px", lineHeight: 1.6 }}>
+            Star the repo to help us grow and stay up to date with new releases.
+          </p>
+        </div>
+
+        {starRepoError ? (
+          <div
+            style={{
+              borderRadius: "8px",
+              border: "1px solid rgba(255, 110, 110, 0.24)",
+              background: "rgba(255, 110, 110, 0.06)",
+              padding: "10px 12px",
+              color: "#ff9b9b",
+              fontSize: "12px",
+            }}
+            data-testid="onboarding-star-repo-error"
+          >
+            {starRepoError}
+          </div>
+        ) : null}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+          <button
+            type="button"
+            onClick={dismissStarRepoPrompt}
+            style={{
+              border: "1px solid rgba(255, 255, 255, 0.10)",
+              borderRadius: "6px",
+              padding: "8px 14px",
+              background: "rgba(255, 255, 255, 0.05)",
+              color: "rgba(255, 255, 255, 0.7)",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 500,
+              transition: "all 160ms ease",
+            }}
+          >
+            Maybe later
+          </button>
+          <button
+            type="button"
+            onClick={starSandboxAgentRepo}
+            disabled={starRepoPending}
+            style={{
+              border: 0,
+              borderRadius: "6px",
+              padding: "8px 14px",
+              background: starRepoPending ? "rgba(255, 255, 255, 0.06)" : "rgba(255, 255, 255, 0.12)",
+              color: "#ffffff",
+              cursor: starRepoPending ? "progress" : "pointer",
+              fontSize: "12px",
+              fontWeight: 600,
+              transition: "all 160ms ease",
+            }}
+            data-testid="onboarding-star-repo-submit"
+          >
+            {starRepoPending ? "Starring..." : "Star the repo"}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const isDesktop = !!import.meta.env.VITE_DESKTOP;
+  const onDragMouseDown = useCallback((event: ReactPointerEvent) => {
+    if (event.button !== 0) return;
+    // Tauri v2 IPC: invoke start_dragging on the webview window
+    const ipc = (window as Record<string, unknown>).__TAURI_INTERNALS__ as { invoke: (cmd: string, args?: unknown) => Promise<unknown> } | undefined;
+    if (ipc?.invoke) {
+      ipc.invoke("plugin:window|start_dragging").catch(() => {});
+    }
+  }, []);
+  const dragRegion = isDesktop ? (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: "38px",
+        zIndex: 9998,
+        pointerEvents: "none",
+      }}
+    >
+      {/* Background drag target – sits behind interactive elements */}
+      <div
+        onPointerDown={onDragMouseDown}
+        style={
+          {
+            position: "absolute",
+            inset: 0,
+            WebkitAppRegion: "drag",
+            pointerEvents: "auto",
+            zIndex: 0,
+          } as React.CSSProperties
+        }
+      />
+    </div>
+  ) : null;
+
+  const collapsedToggleStyle: React.CSSProperties = {
+    width: "26px",
+    height: "26px",
+    borderRadius: "6px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    color: "#71717a",
+    position: "relative",
+    zIndex: 9999,
+    flexShrink: 0,
+  };
+
+  const sidebarTransition = "width 200ms ease";
+  const contentFrameStyle: React.CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "row",
+    overflow: "hidden",
+    marginBottom: "8px",
+    marginRight: "8px",
+  };
+
   if (!activeTask) {
     return (
       <>
-        <MockWorkspaceOrgBar />
+        {dragRegion}
         <Shell>
-          <div style={{ width: `${leftWidth}px`, flexShrink: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
-            <Sidebar
-              projects={projects}
-              newTaskRepos={viewModel.repos}
-              selectedNewTaskRepoId={selectedNewTaskRepoId}
-              activeId=""
-              onSelect={selectTask}
-              onCreate={createTask}
-              onSelectNewTaskRepo={setSelectedNewTaskRepoId}
-              onMarkUnread={markTaskUnread}
-              onRenameTask={renameTask}
-              onRenameBranch={renameBranch}
-              onReorderProjects={reorderProjects}
-            />
+          <div
+            style={{
+              width: leftSidebarOpen ? `${leftWidth}px` : 0,
+              flexShrink: 0,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              transition: sidebarTransition,
+            }}
+          >
+            <div style={{ minWidth: `${leftWidth}px`, flex: 1, display: "flex", flexDirection: "column" }}>
+              <Sidebar
+                projects={projects}
+                newTaskRepos={viewModel.repos}
+                selectedNewTaskRepoId={selectedNewTaskRepoId}
+                activeId=""
+                onSelect={selectTask}
+                onCreate={createTask}
+                onSelectNewTaskRepo={setSelectedNewTaskRepoId}
+                onMarkUnread={markTaskUnread}
+                onRenameTask={renameTask}
+                onRenameBranch={renameBranch}
+                onReorderProjects={reorderProjects}
+                onToggleSidebar={() => setLeftSidebarOpen(false)}
+              />
+            </div>
           </div>
-          <PanelResizeHandle onResizeStart={onLeftResizeStart} onResize={onLeftResize} />
-          <SPanel $style={{ backgroundColor: "#09090b", flex: 1, minWidth: 0 }}>
-            <ScrollBody>
-              <div
-                style={{
-                  minHeight: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "32px",
-                }}
-              >
+          {leftSidebarOpen ? null : (
+            <div style={{ flexShrink: 0, padding: "6px 4px 0 6px", paddingTop: isDesktop ? "38px" : "6px" }}>
+              <div style={collapsedToggleStyle} onClick={() => setLeftSidebarOpen(true)}>
+                <PanelLeft size={16} />
+              </div>
+            </div>
+          )}
+          <div style={contentFrameStyle}>
+            {leftSidebarOpen ? <PanelResizeHandle onResizeStart={onLeftResizeStart} onResize={onLeftResize} /> : null}
+            <SPanel $style={{ backgroundColor: "#09090b", flex: 1, minWidth: 0 }}>
+              <ScrollBody>
                 <div
                   style={{
-                    maxWidth: "420px",
-                    textAlign: "center",
+                    minHeight: "100%",
                     display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "32px",
                   }}
                 >
-                  <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Create your first task</h2>
-                  <p style={{ margin: 0, opacity: 0.75 }}>
-                    {viewModel.repos.length > 0 ? "Choose a repo, then create a task." : "No repos are available in this workspace yet."}
-                  </p>
-                  {viewModel.repos.length > 0 ? (
-                    <label style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "left" }}>
-                      <span style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", opacity: 0.7 }}>Repo</span>
-                      <select
-                        value={selectedNewTaskRepoId}
-                        onChange={(event) => {
-                          setSelectedNewTaskRepoId(event.currentTarget.value);
-                        }}
-                        style={{
-                          borderRadius: "10px",
-                          border: "1px solid rgba(255,255,255,0.12)",
-                          padding: "10px 12px",
-                          background: "rgba(255,255,255,0.05)",
-                          color: "#f4f4f5",
-                        }}
-                      >
-                        {viewModel.repos.map((repo) => (
-                          <option key={repo.id} value={repo.id}>
-                            {repo.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={createTask}
-                    disabled={viewModel.repos.length === 0}
+                  <div
                     style={{
-                      alignSelf: "center",
-                      border: 0,
-                      borderRadius: "999px",
-                      padding: "10px 18px",
-                      background: viewModel.repos.length > 0 ? "rgba(255, 255, 255, 0.12)" : "#444",
-                      color: "#e4e4e7",
-                      cursor: viewModel.repos.length > 0 ? "pointer" : "not-allowed",
-                      fontWeight: 600,
+                      maxWidth: "420px",
+                      textAlign: "center",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "12px",
                     }}
                   >
-                    New task
-                  </button>
+                    <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>Create your first task</h2>
+                    <p style={{ margin: 0, opacity: 0.75 }}>
+                      {viewModel.repos.length > 0
+                        ? "Start from the sidebar to create a task on the first available repo."
+                        : "No repos are available in this workspace yet."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={createTask}
+                      disabled={viewModel.repos.length === 0}
+                      style={{
+                        alignSelf: "center",
+                        border: 0,
+                        borderRadius: "999px",
+                        padding: "10px 18px",
+                        background: viewModel.repos.length > 0 ? "rgba(255, 255, 255, 0.12)" : "#444",
+                        color: "#e4e4e7",
+                        cursor: viewModel.repos.length > 0 ? "pointer" : "not-allowed",
+                        fontWeight: 600,
+                      }}
+                    >
+                      New task
+                    </button>
+                  </div>
                 </div>
+              </ScrollBody>
+            </SPanel>
+            {rightSidebarOpen ? <PanelResizeHandle onResizeStart={onRightResizeStart} onResize={onRightResize} /> : null}
+            <div
+              style={{
+                width: rightSidebarOpen ? `${rightWidth}px` : 0,
+                flexShrink: 0,
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                transition: sidebarTransition,
+              }}
+            >
+              <div style={{ minWidth: `${rightWidth}px`, flex: 1, display: "flex", flexDirection: "column" }}>
+                <SPanel />
               </div>
-            </ScrollBody>
-          </SPanel>
-          <PanelResizeHandle onResizeStart={onRightResizeStart} onResize={onRightResize} />
-          <div style={{ width: `${rightWidth}px`, flexShrink: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
-            <SPanel />
+            </div>
           </div>
+          {rightSidebarOpen ? null : (
+            <div style={{ flexShrink: 0, padding: "6px 6px 0 4px" }}>
+              <div style={collapsedToggleStyle} onClick={() => setRightSidebarOpen(true)}>
+                <PanelRight size={16} />
+              </div>
+            </div>
+          )}
         </Shell>
       </>
     );
@@ -1296,55 +1542,97 @@ export function MockLayout({ workspaceId, selectedTaskId, selectedSessionId }: M
 
   return (
     <>
-      <MockWorkspaceOrgBar />
+      {dragRegion}
       <Shell>
-        <div style={{ width: `${leftWidth}px`, flexShrink: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <Sidebar
-            projects={projects}
-            newTaskRepos={viewModel.repos}
-            selectedNewTaskRepoId={selectedNewTaskRepoId}
-            activeId={activeTask.id}
-            onSelect={selectTask}
-            onCreate={createTask}
-            onSelectNewTaskRepo={setSelectedNewTaskRepoId}
-            onMarkUnread={markTaskUnread}
-            onRenameTask={renameTask}
-            onRenameBranch={renameBranch}
-            onReorderProjects={reorderProjects}
-          />
+        <div
+          style={{
+            width: leftSidebarOpen ? `${leftWidth}px` : 0,
+            flexShrink: 0,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            transition: sidebarTransition,
+          }}
+        >
+          <div style={{ minWidth: `${leftWidth}px`, flex: 1, display: "flex", flexDirection: "column" }}>
+            <Sidebar
+              projects={projects}
+              newTaskRepos={viewModel.repos}
+              selectedNewTaskRepoId={selectedNewTaskRepoId}
+              activeId={activeTask.id}
+              onSelect={selectTask}
+              onCreate={createTask}
+              onSelectNewTaskRepo={setSelectedNewTaskRepoId}
+              onMarkUnread={markTaskUnread}
+              onRenameTask={renameTask}
+              onRenameBranch={renameBranch}
+              onReorderProjects={reorderProjects}
+              onToggleSidebar={() => setLeftSidebarOpen(false)}
+            />
+          </div>
         </div>
-        <PanelResizeHandle onResizeStart={onLeftResizeStart} onResize={onLeftResize} />
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <TranscriptPanel
-            taskWorkbenchClient={taskWorkbenchClient}
-            task={activeTask}
-            activeTabId={activeTabId}
-            lastAgentTabId={lastAgentTabId}
-            openDiffs={openDiffs}
-            onSyncRouteSession={syncRouteSession}
-            onSetActiveTabId={(tabId) => {
-              setActiveTabIdByTask((current) => ({ ...current, [activeTask.id]: tabId }));
+        {leftSidebarOpen ? null : (
+          <div style={{ flexShrink: 0, padding: "6px 4px 0 6px", paddingTop: isDesktop ? "38px" : "6px" }}>
+            <div style={collapsedToggleStyle} onClick={() => setLeftSidebarOpen(true)}>
+              <PanelLeft size={16} />
+            </div>
+          </div>
+        )}
+        <div style={contentFrameStyle}>
+          {leftSidebarOpen ? <PanelResizeHandle onResizeStart={onLeftResizeStart} onResize={onLeftResize} /> : null}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <TranscriptPanel
+              taskWorkbenchClient={taskWorkbenchClient}
+              task={activeTask}
+              activeTabId={activeTabId}
+              lastAgentTabId={lastAgentTabId}
+              openDiffs={openDiffs}
+              onSyncRouteSession={syncRouteSession}
+              onSetActiveTabId={(tabId) => {
+                setActiveTabIdByTask((current) => ({ ...current, [activeTask.id]: tabId }));
+              }}
+              onSetLastAgentTabId={(tabId) => {
+                setLastAgentTabIdByTask((current) => ({ ...current, [activeTask.id]: tabId }));
+              }}
+              onSetOpenDiffs={(paths) => {
+                setOpenDiffsByTask((current) => ({ ...current, [activeTask.id]: paths }));
+              }}
+            />
+          </div>
+          {rightSidebarOpen ? <PanelResizeHandle onResizeStart={onRightResizeStart} onResize={onRightResize} /> : null}
+          <div
+            style={{
+              width: rightSidebarOpen ? `${rightWidth}px` : 0,
+              flexShrink: 0,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              transition: sidebarTransition,
             }}
-            onSetLastAgentTabId={(tabId) => {
-              setLastAgentTabIdByTask((current) => ({ ...current, [activeTask.id]: tabId }));
-            }}
-            onSetOpenDiffs={(paths) => {
-              setOpenDiffsByTask((current) => ({ ...current, [activeTask.id]: paths }));
-            }}
-          />
+          >
+            <div style={{ minWidth: `${rightWidth}px`, flex: 1, display: "flex", flexDirection: "column" }}>
+              <RightRail
+                workspaceId={workspaceId}
+                task={activeTask}
+                activeTabId={activeTabId}
+                onOpenDiff={openDiffTab}
+                onArchive={archiveTask}
+                onRevertFile={revertFile}
+                onPublishPr={publishPr}
+                onToggleSidebar={() => setRightSidebarOpen(false)}
+              />
+            </div>
+          </div>
         </div>
-        <PanelResizeHandle onResizeStart={onRightResizeStart} onResize={onRightResize} />
-        <div style={{ width: `${rightWidth}px`, flexShrink: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <RightRail
-            workspaceId={workspaceId}
-            task={activeTask}
-            activeTabId={activeTabId}
-            onOpenDiff={openDiffTab}
-            onArchive={archiveTask}
-            onRevertFile={revertFile}
-            onPublishPr={publishPr}
-          />
-        </div>
+        {rightSidebarOpen ? null : (
+          <div style={{ flexShrink: 0, padding: "6px 6px 0 4px" }}>
+            <div style={collapsedToggleStyle} onClick={() => setRightSidebarOpen(true)}>
+              <PanelRight size={16} />
+            </div>
+          </div>
+        )}
       </Shell>
     </>
   );

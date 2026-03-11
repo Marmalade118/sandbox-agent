@@ -42,7 +42,7 @@ export const PromptComposer = memo(function PromptComposer({
       position: "relative",
       backgroundColor: "rgba(255, 255, 255, 0.06)",
       border: `1px solid ${theme.colors.borderOpaque}`,
-      borderRadius: "16px",
+      borderRadius: "12px",
       minHeight: `${PROMPT_TEXTAREA_MIN_HEIGHT + 36}px`,
       transition: "border-color 200ms ease",
       ":focus-within": { borderColor: "rgba(255, 255, 255, 0.15)" },
@@ -56,7 +56,7 @@ export const PromptComposer = memo(function PromptComposer({
       padding: "14px 58px 8px 14px",
       background: "transparent",
       border: "none",
-      borderRadius: "16px 16px 0 0",
+      borderRadius: "12px 12px 0 0",
       color: theme.colors.contentPrimary,
       fontSize: "13px",
       fontFamily: "inherit",
@@ -77,7 +77,7 @@ export const PromptComposer = memo(function PromptComposer({
       padding: "0",
       margin: "0",
       border: "none",
-      borderRadius: "6px",
+      borderRadius: "10px",
       cursor: "pointer",
       position: "absolute",
       right: "12px",
@@ -112,7 +112,7 @@ export const PromptComposer = memo(function PromptComposer({
   return (
     <div
       className={css({
-        padding: "12px 16px",
+        padding: "12px 12px",
         borderTop: "none",
         flexShrink: 0,
         display: "flex",

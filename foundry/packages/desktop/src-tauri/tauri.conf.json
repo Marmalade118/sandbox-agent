@@ -1,0 +1,43 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
+  "productName": "Foundry",
+  "version": "0.1.0",
+  "identifier": "dev.sandboxagent.foundry",
+  "build": {
+    "beforeDevCommand": "VITE_DESKTOP=1 pnpm --filter @sandbox-agent/foundry-frontend dev",
+    "devUrl": "http://localhost:4173",
+    "frontendDist": "../frontend-dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Foundry",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "theme": "Dark",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "macOS": {
+      "signingIdentity": null
+    },
+    "externalBin": ["sidecars/foundry-backend"]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

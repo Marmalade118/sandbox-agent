@@ -185,6 +185,14 @@ foundry-docker-build tag='foundry:local':
 	docker build -f foundry/Dockerfile -t {{tag}} .
 
 [group('foundry')]
+foundry-desktop-dev:
+	pnpm --filter @sandbox-agent/foundry-desktop dev
+
+[group('foundry')]
+foundry-desktop-build:
+	pnpm --filter @sandbox-agent/foundry-desktop build:all
+
+[group('foundry')]
 foundry-railway-up:
 	npx -y @railway/cli up --detach
 

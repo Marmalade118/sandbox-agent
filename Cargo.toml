@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["server/packages/*", "gigacode"]
+exclude = ["factory/packages/desktop/src-tauri", "foundry/packages/desktop/src-tauri"]
 
 [workspace.package]
 version = "0.3.1"

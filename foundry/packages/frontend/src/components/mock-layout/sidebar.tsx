@@ -1,7 +1,7 @@
 import { memo, useRef, useState } from "react";
 import { useStyletron } from "baseui";
 import { LabelSmall, LabelXSmall } from "baseui/typography";
-import { ChevronDown, ChevronUp, CloudUpload, GitPullRequestDraft, ListChecks, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, CloudUpload, GitPullRequestDraft, ListChecks, PanelLeft, Plus } from "lucide-react";
 
 import { formatRelativeAge, type Task, type ProjectSection } from "./view-model";
 import { ContextMenuOverlay, TaskIndicator, PanelHeaderBar, SPanel, ScrollBody, useContextMenu } from "./ui";
@@ -34,6 +34,7 @@ export const Sidebar = memo(function Sidebar({
   onRenameTask,
   onRenameBranch,
   onReorderProjects,
+  onToggleSidebar,
 }: {
   projects: ProjectSection[];
   newTaskRepos: Array<{ id: string; label: string }>;
@@ -46,6 +47,7 @@ export const Sidebar = memo(function Sidebar({
   onRenameTask: (id: string) => void;
   onRenameBranch: (id: string) => void;
   onReorderProjects: (fromIndex: number, toIndex: number) => void;
+  onToggleSidebar?: () => void;
 }) {
   const [css, theme] = useStyletron();
   const contextMenu = useContextMenu();
@@ -63,6 +65,45 @@ export const Sidebar = memo(function Sidebar({
           display: none !important;
         }
       `}</style>
+      {import.meta.env.VITE_DESKTOP ? (
+        <div
+          className={css({
+            height: "38px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            paddingRight: "10px",
+            flexShrink: 0,
+            position: "relative",
+            zIndex: 9999,
+          })}
+        >
+          {onToggleSidebar ? (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={onToggleSidebar}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") onToggleSidebar();
+              }}
+              className={css({
+                width: "26px",
+                height: "26px",
+                borderRadius: "6px",
+                color: "#71717a",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                ":hover": { color: "#a1a1aa", backgroundColor: "rgba(255, 255, 255, 0.06)" },
+              })}
+            >
+              <PanelLeft size={14} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <PanelHeaderBar $style={{ backgroundColor: "transparent", borderBottom: "none" }}>
         <LabelSmall
           color={theme.colors.contentPrimary}
@@ -71,6 +112,30 @@ export const Sidebar = memo(function Sidebar({
           <ListChecks size={14} />
           Tasks
         </LabelSmall>
+        {!import.meta.env.VITE_DESKTOP && onToggleSidebar ? (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={onToggleSidebar}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") onToggleSidebar();
+            }}
+            className={css({
+              width: "26px",
+              height: "26px",
+              borderRadius: "6px",
+              color: "#71717a",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              ":hover": { color: "#a1a1aa", backgroundColor: "rgba(255, 255, 255, 0.06)" },
+            })}
+          >
+            <PanelLeft size={14} />
+          </div>
+        ) : null}
         <div
           role="button"
           tabIndex={0}

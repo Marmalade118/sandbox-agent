@@ -166,7 +166,8 @@ export const TranscriptHeader = memo(function TranscriptHeader({
             ":hover": { backgroundColor: "rgba(255, 255, 255, 0.06)", color: theme.colors.contentPrimary },
           })}
         >
-          <MailOpen size={12} style={{ flexShrink: 0 }} /> {activeTab.unread ? "Mark read" : "Mark unread"}
+          <MailOpen size={12} style={{ flexShrink: 0 }} />{" "}
+          <span className={css({ "@media screen and (max-width: 768px)": { display: "none" } })}>{activeTab.unread ? "Mark read" : "Mark unread"}</span>
         </button>
       ) : null}
     </PanelHeaderBar>
