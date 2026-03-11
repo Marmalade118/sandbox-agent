@@ -43,6 +43,7 @@ interface CreateHandoffCommand {
   agentType: AgentType | null;
   explicitTitle: string | null;
   explicitBranchName: string | null;
+  initialPrompt: string | null;
   onBranch: string | null;
 }
 
@@ -387,7 +388,8 @@ async function createHandoffMutation(c: any, cmd: CreateHandoffCommand): Promise
       providerId: cmd.providerId,
       agentType: cmd.agentType,
       explicitTitle: onBranch ? null : cmd.explicitTitle,
-      explicitBranchName: onBranch ? null : cmd.explicitBranchName
+      explicitBranchName: onBranch ? null : cmd.explicitBranchName,
+      initialPrompt: cmd.initialPrompt,
     });
   } catch (error) {
     if (onBranch) {

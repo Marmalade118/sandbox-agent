@@ -51,6 +51,7 @@ export interface HandoffInput {
   agentType: AgentType | null;
   explicitTitle: string | null;
   explicitBranchName: string | null;
+  initialPrompt: string | null;
 }
 
 interface InitializeCommand {
@@ -129,6 +130,7 @@ export const handoff = actor({
     agentType: input.agentType,
     explicitTitle: input.explicitTitle,
     explicitBranchName: input.explicitBranchName,
+    initialPrompt: input.initialPrompt,
     initialized: false,
     previousStatus: null as string | null,
   }),

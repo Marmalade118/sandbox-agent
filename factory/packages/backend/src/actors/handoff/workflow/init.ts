@@ -413,7 +413,10 @@ export async function initCreateSessionActivity(
       : undefined;
 
   return await sandboxInstance.createSession({
-    prompt: buildAgentPrompt(loopCtx.state.task),
+    prompt:
+      typeof loopCtx.state.initialPrompt === "string"
+        ? loopCtx.state.initialPrompt
+        : buildAgentPrompt(loopCtx.state.task),
     cwd,
     agent: (loopCtx.state.agentType ?? config.default_agent) as any
   });
